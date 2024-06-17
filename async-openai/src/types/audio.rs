@@ -10,7 +10,7 @@ pub struct AudioInput {
     pub source: InputSource,
 }
 
-#[derive(Debug, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AudioResponseFormat {
     #[default]
@@ -21,7 +21,7 @@ pub enum AudioResponseFormat {
     Vtt,
 }
 
-#[derive(Debug, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SpeechResponseFormat {
     #[default]
@@ -33,7 +33,7 @@ pub enum SpeechResponseFormat {
     Wav,
 }
 
-#[derive(Debug, Default, Serialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum Voice {
@@ -46,7 +46,7 @@ pub enum Voice {
     Shimmer,
 }
 
-#[derive(Debug, Default, Serialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub enum SpeechModel {
     #[default]
     #[serde(rename = "tts-1")]
@@ -57,7 +57,7 @@ pub enum SpeechModel {
     Other(String),
 }
 
-#[derive(Debug, Default, Serialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum TimestampGranularity {
     Word,

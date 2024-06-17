@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::OpenAIError;
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum EmbeddingInput {
     String(String),
@@ -14,7 +14,7 @@ pub enum EmbeddingInput {
     ArrayOfIntegerArray(Vec<Vec<u32>>),
 }
 
-#[derive(Debug, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum EncodingFormat {
     #[default]
@@ -22,7 +22,7 @@ pub enum EncodingFormat {
     Base64,
 }
 
-#[derive(Debug, Serialize, Default, Clone, Builder, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Builder, PartialEq)]
 #[builder(name = "CreateEmbeddingRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option), default)]
