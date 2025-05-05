@@ -65,14 +65,13 @@ impl<'c, C: Config> Runs<'c, C> {
             request.stream = Some(true);
         }
 
-        Ok(self
-            .client
+        self.client
             .post_stream_mapped_raw_events(
                 &format!("/threads/{}/runs", self.thread_id),
                 request,
                 TryFrom::try_from,
             )
-            .await)
+            .await
     }
 
     /// Retrieves a run.
@@ -152,8 +151,7 @@ impl<'c, C: Config> Runs<'c, C> {
             request.stream = Some(true);
         }
 
-        Ok(self
-            .client
+        self.client
             .post_stream_mapped_raw_events(
                 &format!(
                     "/threads/{}/runs/{run_id}/submit_tool_outputs",
@@ -162,7 +160,7 @@ impl<'c, C: Config> Runs<'c, C> {
                 request,
                 TryFrom::try_from,
             )
-            .await)
+            .await
     }
 
     /// Cancels a run that is `in_progress`

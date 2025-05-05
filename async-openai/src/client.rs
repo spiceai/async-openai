@@ -4,7 +4,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use reqwest::multipart::Form;
 use reqwest_eventsource::{Event, EventSource, RequestBuilderExt};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     config::{Config, OpenAIConfig},
@@ -172,11 +172,13 @@ impl<C: Config> Client<C> {
         O: DeserializeOwned,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .get(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .build()?)
         };
 
@@ -190,12 +192,14 @@ impl<C: Config> Client<C> {
         Q: Serialize + ?Sized,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .get(self.config.url(path))
                 .query(&self.config.query())
                 .query(query)
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .build()?)
         };
 
@@ -208,11 +212,13 @@ impl<C: Config> Client<C> {
         O: DeserializeOwned,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .delete(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .build()?)
         };
 
@@ -222,11 +228,13 @@ impl<C: Config> Client<C> {
     /// Make a GET request to {path} and return the response body
     pub(crate) async fn get_raw(&self, path: &str) -> Result<Bytes, OpenAIError> {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .get(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .build()?)
         };
 
@@ -239,11 +247,13 @@ impl<C: Config> Client<C> {
         I: Serialize,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .json(&request)
                 .build()?)
         };
@@ -258,11 +268,13 @@ impl<C: Config> Client<C> {
         O: DeserializeOwned,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .json(&request)
                 .build()?)
         };
@@ -277,11 +289,13 @@ impl<C: Config> Client<C> {
         F: Clone,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?)
                 .build()?)
         };
@@ -297,11 +311,13 @@ impl<C: Config> Client<C> {
         F: Clone,
     {
         let request_maker = || async {
+            let headers = self.config.headers().await?;
+
             Ok(self
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers().await)
+                .headers(headers)
                 .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?)
                 .build()?)
         };
@@ -398,22 +414,24 @@ impl<C: Config> Client<C> {
         &self,
         path: &str,
         request: I,
-    ) -> Pin<Box<dyn Stream<Item = Result<O, E>> + Send>>
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<O, E>> + Send>>, OpenAIError>
     where
         I: Serialize,
         O: DeserializeOwned + std::marker::Send + 'static,
         E: Display + Send + From<serde_json::Error> + From<reqwest_eventsource::Error> + 'static,
     {
+        let headers = self.config.headers().await?;
+
         let event_source = self
             .http_client
             .post(self.config.url(path))
             .query(&self.config.query())
-            .headers(self.config.headers().await)
+            .headers(headers)
             .json(&request)
             .eventsource()
             .unwrap();
 
-        stream(event_source).await
+        Ok(stream(event_source).await)
     }
 
     pub(crate) async fn post_stream_mapped_raw_events<I, O>(
@@ -421,21 +439,23 @@ impl<C: Config> Client<C> {
         path: &str,
         request: I,
         event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError> + Send + 'static,
-    ) -> Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>, OpenAIError>
     where
         I: Serialize,
         O: DeserializeOwned + std::marker::Send + 'static,
     {
+        let headers = self.config.headers().await?;
+
         let event_source = self
             .http_client
             .post(self.config.url(path))
             .query(&self.config.query())
-            .headers(self.config.headers().await)
+            .headers(headers)
             .json(&request)
             .eventsource()
             .unwrap();
 
-        stream_mapped_raw_events(event_source, event_mapper).await
+        Ok(stream_mapped_raw_events(event_source, event_mapper).await)
     }
 
     /// Make HTTP GET request to receive SSE
@@ -443,22 +463,24 @@ impl<C: Config> Client<C> {
         &self,
         path: &str,
         query: &Q,
-    ) -> Pin<Box<dyn Stream<Item = Result<O, E>> + Send>>
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<O, E>> + Send>>, OpenAIError>
     where
         Q: Serialize + ?Sized,
         O: DeserializeOwned + std::marker::Send + 'static,
         E: Display + Send + From<serde_json::Error> + From<reqwest_eventsource::Error> + 'static,
     {
+        let headers = self.config.headers().await?;
+
         let event_source = self
             .http_client
             .get(self.config.url(path))
             .query(query)
             .query(&self.config.query())
-            .headers(self.config.headers().await)
+            .headers(headers)
             .eventsource()
             .unwrap();
 
-        stream(event_source).await
+        Ok(stream(event_source).await)
     }
 }
 

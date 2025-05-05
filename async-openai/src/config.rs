@@ -2,6 +2,9 @@
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
+use std::future::Future;
+
+use crate::error::OpenAIError;
 
 /// Default v1 API base url
 pub const OPENAI_API_BASE: &str = "https://api.openai.com/v1";
@@ -16,13 +19,13 @@ pub const OPENAI_BETA_HEADER: &str = "OpenAI-Beta";
 /// [crate::Client] relies on this for every API call on OpenAI
 /// or Azure OpenAI service
 pub trait Config: Clone {
-    fn headers(&self) -> impl std::future::Future<Output = HeaderMap> + Send;
+    fn headers(&self) -> impl Future<Output = Result<HeaderMap, OpenAIError>> + Send;
     fn url(&self, path: &str) -> String;
     fn query(&self) -> Vec<(&str, &str)>;
 
     fn api_base(&self) -> &str;
 
-    fn api_key(&self) -> impl std::future::Future<Output = SecretString> + Send;
+    fn api_key(&self) -> impl Future<Output = Result<SecretString, OpenAIError>> + Send;
 }
 
 /// Configuration for OpenAI API
@@ -84,7 +87,7 @@ impl OpenAIConfig {
 }
 
 impl Config for OpenAIConfig {
-    async fn headers(&self) -> HeaderMap {
+    async fn headers(&self) -> Result<HeaderMap, OpenAIError> {
         let mut headers = HeaderMap::new();
         if !self.org_id.is_empty() {
             headers.insert(
@@ -100,7 +103,7 @@ impl Config for OpenAIConfig {
             );
         }
 
-        let api_key = self.api_key().await;
+        let api_key = self.api_key().await?;
 
         // API key can also be found in [`reqwest::Client`] headers.
         if !api_key.expose_secret().is_empty() {
@@ -117,7 +120,7 @@ impl Config for OpenAIConfig {
         // Calls to the Assistants API require that you pass a Beta header
         headers.insert(OPENAI_BETA_HEADER, "assistants=v2".parse().unwrap());
 
-        headers
+        Ok(headers)
     }
 
     fn url(&self, path: &str) -> String {
@@ -128,8 +131,8 @@ impl Config for OpenAIConfig {
         &self.api_base
     }
 
-    async fn api_key(&self) -> SecretString {
-        self.api_key.clone()
+    async fn api_key(&self) -> Result<SecretString, OpenAIError> {
+        Ok(self.api_key.clone())
     }
 
     fn query(&self) -> Vec<(&str, &str)> {
@@ -194,7 +197,7 @@ impl AzureConfig {
 }
 
 impl Config for AzureConfig {
-    async fn headers(&self) -> HeaderMap {
+    async fn headers(&self) -> Result<HeaderMap, OpenAIError> {
         let mut headers = HeaderMap::new();
 
         match self.auth {
@@ -212,7 +215,7 @@ impl Config for AzureConfig {
             }
         };
 
-        headers
+        Ok(headers)
     }
 
     fn url(&self, path: &str) -> String {
@@ -226,9 +229,9 @@ impl Config for AzureConfig {
         &self.api_base
     }
 
-    async fn api_key(&self) -> SecretString {
+    async fn api_key(&self) -> Result<SecretString, OpenAIError> {
         match self.auth {
-            AzureAuthOption::ApiKey(ref api_key) => api_key.clone(),
+            AzureAuthOption::ApiKey(ref api_key) => Ok(api_key.clone()),
             AzureAuthOption::EntraToken(_) => panic!("AzureAuthOption::EntraToken"),
         }
     }

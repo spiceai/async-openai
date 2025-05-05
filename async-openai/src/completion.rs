@@ -72,6 +72,6 @@ impl<'c, C: Config> Completions<'c, C> {
 
             request.stream = Some(true);
         }
-        Ok(self.client.post_stream("/completions", request).await)
+        self.client.post_stream("/completions", request).await
     }
 }

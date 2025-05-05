@@ -63,10 +63,9 @@ impl<'c, C: Config> Threads<'c, C> {
 
             request.stream = Some(true);
         }
-        Ok(self
-            .client
+        self.client
             .post_stream_mapped_raw_events("/threads/runs", request, TryFrom::try_from)
-            .await)
+            .await
     }
 
     /// Create a thread.

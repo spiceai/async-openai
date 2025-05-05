@@ -83,6 +83,6 @@ impl<'c, C: Config> Chat<'c, C> {
 
             request.stream = Some(true);
         }
-        Ok(self.client.post_stream("/chat/completions", request).await)
+        self.client.post_stream("/chat/completions", request).await
     }
 }
