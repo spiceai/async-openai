@@ -16,13 +16,13 @@ pub const OPENAI_BETA_HEADER: &str = "OpenAI-Beta";
 /// [crate::Client] relies on this for every API call on OpenAI
 /// or Azure OpenAI service
 pub trait Config: Clone {
-    fn headers(&self) -> HeaderMap;
+    fn headers(&self) -> impl std::future::Future<Output = HeaderMap> + Send;
     fn url(&self, path: &str) -> String;
     fn query(&self) -> Vec<(&str, &str)>;
 
     fn api_base(&self) -> &str;
 
-    fn api_key(&self) -> &SecretString;
+    fn api_key(&self) -> impl std::future::Future<Output = &SecretString> + Send;
 }
 
 /// Configuration for OpenAI API
@@ -84,7 +84,7 @@ impl OpenAIConfig {
 }
 
 impl Config for OpenAIConfig {
-    fn headers(&self) -> HeaderMap {
+    async fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if !self.org_id.is_empty() {
             headers.insert(
@@ -100,11 +100,13 @@ impl Config for OpenAIConfig {
             );
         }
 
+        let api_key = self.api_key().await;
+
         // API key can also be found in [`reqwest::Client`] headers.
-        if !self.api_key().expose_secret().is_empty() {
+        if !api_key.expose_secret().is_empty() {
             headers.insert(
                 AUTHORIZATION,
-                format!("Bearer {}", self.api_key().expose_secret())
+                format!("Bearer {}", api_key.expose_secret())
                     .as_str()
                     .parse()
                     .unwrap(),
@@ -126,7 +128,7 @@ impl Config for OpenAIConfig {
         &self.api_base
     }
 
-    fn api_key(&self) -> &SecretString {
+    async fn api_key(&self) -> &SecretString {
         &self.api_key
     }
 
@@ -192,7 +194,7 @@ impl AzureConfig {
 }
 
 impl Config for AzureConfig {
-    fn headers(&self) -> HeaderMap {
+    async fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
 
         match self.auth {
@@ -224,7 +226,7 @@ impl Config for AzureConfig {
         &self.api_base
     }
 
-    fn api_key(&self) -> &SecretString {
+    async fn api_key(&self) -> &SecretString {
         match self.auth {
             AzureAuthOption::ApiKey(ref api_key) => api_key,
             AzureAuthOption::EntraToken(_) => panic!("AzureAuthOption::EntraToken"),

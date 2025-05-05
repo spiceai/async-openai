@@ -176,7 +176,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .get(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .build()?)
         };
 
@@ -195,7 +195,7 @@ impl<C: Config> Client<C> {
                 .get(self.config.url(path))
                 .query(&self.config.query())
                 .query(query)
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .build()?)
         };
 
@@ -212,7 +212,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .delete(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .build()?)
         };
 
@@ -226,7 +226,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .get(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .build()?)
         };
 
@@ -243,7 +243,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .json(&request)
                 .build()?)
         };
@@ -262,7 +262,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .json(&request)
                 .build()?)
         };
@@ -281,7 +281,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?)
                 .build()?)
         };
@@ -301,7 +301,7 @@ impl<C: Config> Client<C> {
                 .http_client
                 .post(self.config.url(path))
                 .query(&self.config.query())
-                .headers(self.config.headers())
+                .headers(self.config.headers().await)
                 .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?)
                 .build()?)
         };
@@ -408,7 +408,7 @@ impl<C: Config> Client<C> {
             .http_client
             .post(self.config.url(path))
             .query(&self.config.query())
-            .headers(self.config.headers())
+            .headers(self.config.headers().await)
             .json(&request)
             .eventsource()
             .unwrap();
@@ -430,7 +430,7 @@ impl<C: Config> Client<C> {
             .http_client
             .post(self.config.url(path))
             .query(&self.config.query())
-            .headers(self.config.headers())
+            .headers(self.config.headers().await)
             .json(&request)
             .eventsource()
             .unwrap();
@@ -454,7 +454,7 @@ impl<C: Config> Client<C> {
             .get(self.config.url(path))
             .query(query)
             .query(&self.config.query())
-            .headers(self.config.headers())
+            .headers(self.config.headers().await)
             .eventsource()
             .unwrap();
 
