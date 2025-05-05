@@ -25,8 +25,8 @@ pub enum OpenAIError {
     /// or when builder fails to build request before making API call
     #[error("invalid args: {0}")]
     InvalidArgument(String),
-
-    #[error("")]
+    /// Error on invalid client configuration
+    #[error("invalid configuration: {0}")]
     ConfigError(String),
 }
 
