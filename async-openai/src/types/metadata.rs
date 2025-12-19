@@ -4,7 +4,9 @@
 /// or the dashboard. Keys are strings with a maximum length of 64
 /// characters. Values are strings with a maximum length of 512
 /// characters.
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Default)]
+#[derive(
+    Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Default, utoipa::ToSchema,
+)]
 #[serde(transparent)]
 pub struct Metadata(serde_json::Value);
 

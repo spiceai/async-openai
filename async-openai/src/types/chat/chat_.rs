@@ -125,7 +125,7 @@ pub enum ChatCompletionRequestDeveloperMessageContent {
     Array(Vec<ChatCompletionRequestDeveloperMessageContentPart>),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum ChatCompletionRequestDeveloperMessageContentPart {
@@ -417,13 +417,13 @@ pub struct ChatCompletionResponseMessageAudio {
     pub transcript: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatCompletionResponseMessageAnnotation {
     UrlCitation { url_citation: UrlCitation },
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
 pub struct UrlCitation {
     /// The index of the last character of the URL citation in the message.
     pub end_index: u32,
@@ -483,56 +483,7 @@ pub struct ChatCompletionFunctions {
     pub parameters: serde_json::Value,
 }
 
-#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq, ToSchema)]
-#[builder(name = "FunctionObjectArgs")]
-#[builder(pattern = "mutable")]
-#[builder(setter(into, strip_option), default)]
-#[builder(derive(Debug))]
-#[builder(build_fn(error = "OpenAIError"))]
-pub struct FunctionObject {
-    /// The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
-    pub name: String,
-    /// A description of what the function does, used by the model to choose when and how to call the function.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// The parameters the functions accepts, described as a JSON Schema object. See the [guide](https://platform.openai.com/docs/guides/text-generation/function-calling) for examples, and the [JSON Schema reference](https://json-schema.org/understanding-json-schema/) for documentation about the format.
-    ///
-    /// Omitting `parameters` defines a function with an empty parameter list.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<serde_json::Value>,
-
-    /// Whether to enable strict schema adherence when generating the function call. If set to true, the model will follow the exact schema defined in the `parameters` field. Only a subset of JSON Schema is supported when `strict` is `true`. Learn more about Structured Outputs in the [function calling guide](https://platform.openai.com/docs/guides/function-calling).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub strict: Option<bool>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ResponseFormat {
-    /// The type of response format being defined: `text`
-    Text,
-    /// The type of response format being defined: `json_object`
-    JsonObject,
-    /// The type of response format being defined: `json_schema`
-    JsonSchema {
-        json_schema: ResponseFormatJsonSchema,
-    },
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
-pub struct ResponseFormatJsonSchema {
-    /// A description of what the response format is for, used by the model to determine how to respond in the format.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// The name of the response format. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
-    pub name: String,
-    /// The schema for the response format, described as a JSON Schema object.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<serde_json::Value>,
-    /// Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the `schema` field. Only a subset of JSON Schema is supported when `strict` is `true`. To learn more, read the [Structured Outputs guide](https://platform.openai.com/docs/guides/structured-outputs).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub strict: Option<bool>,
-}
+// Note: FunctionObject is re-exported from crate::types::shared
 
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
@@ -593,12 +544,12 @@ pub struct ChatCompletionNamedToolChoice {
     pub function: FunctionName,
 }
 
-#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct ChatCompletionNamedToolChoiceCustom {
     pub custom: CustomName,
 }
 
-#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct CustomName {
     /// The name of the custom tool to call.
     pub name: String,
@@ -622,19 +573,19 @@ pub enum ChatCompletionToolChoiceOption {
     Mode(ToolChoiceOptions),
 }
 
-#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct ChatCompletionAllowedToolsChoice {
     pub allowed_tools: Vec<ChatCompletionAllowedTools>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolChoiceAllowedMode {
     Auto,
     Required,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ChatCompletionAllowedTools {
     /// Constrains the tools available to the model to a pre-defined set.
     ///
@@ -655,7 +606,7 @@ pub struct ChatCompletionAllowedTools {
     pub tools: Vec<serde_json::Value>,
 }
 
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolChoiceOptions {
     #[default]

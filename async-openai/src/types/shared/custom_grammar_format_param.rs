@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::OpenAIError;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum GrammarSyntax {
     Lark,
@@ -11,7 +11,7 @@ pub enum GrammarSyntax {
     Regex,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder, utoipa::ToSchema)]
 #[builder(build_fn(error = "OpenAIError"))]
 pub struct CustomGrammarFormatParam {
     /// The grammar definition.

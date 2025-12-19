@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::OpenAIError;
 use crate::types::shared::ImageDetail;
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone, Builder, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, Builder, PartialEq, utoipa::ToSchema)]
 #[builder(name = "ImageUrlArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option), default)]

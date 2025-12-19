@@ -61,7 +61,9 @@ impl<'c, C: Config> Embeddings<'c, C> {
                 ));
             }
         }
-        self.client.post("/embeddings", request).await
+        self.client
+            .post("/embeddings", request, &self.request_options)
+            .await
     }
 
     /// Creates an embedding vector representing the input text.

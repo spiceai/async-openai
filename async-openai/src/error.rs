@@ -113,6 +113,6 @@ pub(crate) fn map_deserialization_error(e: serde_json::Error, bytes: &[u8]) -> O
 
 impl From<reqwest_eventsource::Error> for OpenAIError {
     fn from(e: reqwest_eventsource::Error) -> Self {
-        OpenAIError::StreamError(e.to_string())
+        OpenAIError::StreamError(Box::new(StreamError::ReqwestEventSource(e)))
     }
 }

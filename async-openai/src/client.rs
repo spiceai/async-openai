@@ -1,4 +1,4 @@
-use std::{fmt::Display, pin::Pin, time::Duration};
+use std::pin::Pin;
 
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
@@ -505,7 +505,7 @@ impl<C: Config> Client<C> {
 
         backoff::future::retry(self.backoff.clone(), || async {
             let request = request_maker().await.map_err(backoff::Error::Permanent)?;
-            let mut response = client
+            let response = client
                 .execute(request)
                 .await
                 .map_err(OpenAIError::Reqwest)
