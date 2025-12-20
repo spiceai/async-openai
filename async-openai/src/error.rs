@@ -111,6 +111,7 @@ pub(crate) fn map_deserialization_error(e: serde_json::Error, bytes: &[u8]) -> O
     OpenAIError::JSONDeserialize(e, json_content.to_string())
 }
 
+#[cfg(feature = "_api")]
 impl From<reqwest_eventsource::Error> for OpenAIError {
     fn from(e: reqwest_eventsource::Error) -> Self {
         OpenAIError::StreamError(Box::new(StreamError::ReqwestEventSource(e)))

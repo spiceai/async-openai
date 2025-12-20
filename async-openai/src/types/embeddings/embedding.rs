@@ -1,3 +1,4 @@
+#[cfg(feature = "_api")]
 use base64::engine::{general_purpose, Engine};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -66,6 +67,7 @@ pub enum EmbeddingVector {
     Base64(String),
 }
 
+#[cfg(feature = "_api")]
 impl From<EmbeddingVector> for Vec<f32> {
     fn from(val: EmbeddingVector) -> Self {
         match val {
@@ -84,6 +86,7 @@ impl From<EmbeddingVector> for Vec<f32> {
 }
 
 /// Converts an embedding vector to a base64-encoded string.
+#[cfg(feature = "_api")]
 impl From<EmbeddingVector> for String {
     fn from(val: EmbeddingVector) -> Self {
         match val {
@@ -109,6 +112,7 @@ impl EmbeddingVector {
         }
     }
 
+    #[cfg(feature = "_api")]
     pub fn len(&self) -> usize {
         match self {
             EmbeddingVector::Float(v) => v.len(),
