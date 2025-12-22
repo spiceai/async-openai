@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Filters for file search.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum Filter {
     /// A filter used to compare a specified attribute key to a given value using a defined
@@ -12,7 +13,7 @@ pub enum Filter {
 }
 
 /// Single comparison filter.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ComparisonFilter {
     /// Specifies the comparison operator: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`.
     /// - `eq`: equals
@@ -30,7 +31,7 @@ pub struct ComparisonFilter {
     pub value: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
 pub enum ComparisonType {
     #[serde(rename = "eq")]
     Equals,
@@ -51,7 +52,7 @@ pub enum ComparisonType {
 }
 
 /// Combine multiple filters using `and` or `or`.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct CompoundFilter {
     /// 'Type of operation: `and` or `or`.'
     pub r#type: CompoundType,
@@ -59,7 +60,7 @@ pub struct CompoundFilter {
     pub filters: Vec<Filter>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum CompoundType {
     And,

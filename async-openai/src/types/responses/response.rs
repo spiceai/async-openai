@@ -7,9 +7,10 @@ use crate::types::responses::{
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 /// Role of messages in the API.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     #[default]
@@ -20,7 +21,7 @@ pub enum Role {
 }
 
 /// Status of input/output items.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputStatus {
     InProgress,
@@ -28,7 +29,7 @@ pub enum OutputStatus {
     Incomplete,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum InputParam {
     ///  A text input to the model, equivalent to a text input with the
@@ -46,7 +47,7 @@ pub enum InputParam {
 ///
 /// # OpenAPI Specification
 /// Corresponds to the `Item` schema in the OpenAPI spec with a `type` discriminator.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Item {
     /// A message (type: "message").
@@ -146,7 +147,7 @@ pub enum Item {
 ///
 /// # OpenAPI Specification
 /// Corresponds to the `InputItem` schema: `anyOf[EasyInputMessage, Item, ItemReferenceParam]`
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum InputItem {
     /// A reference to an existing item by ID.
@@ -180,7 +181,7 @@ pub enum InputItem {
 ///
 /// Note: EasyInputMessage is NOT included here - it's a separate variant in `InputItem`,
 /// not part of the structured `Item` enum.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum MessageItem {
     /// An output message from the model (role: assistant, has required id & status).
@@ -197,7 +198,7 @@ pub enum MessageItem {
 }
 
 /// A reference to an existing item by ID.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ItemReference {
     /// The type of item to reference. Can be "item_reference" or null.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -206,7 +207,7 @@ pub struct ItemReference {
     pub id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ItemReferenceType {
     ItemReference,
@@ -351,7 +352,7 @@ pub struct CustomToolCallOutput {
 /// This is the most user-friendly way to provide messages, supporting both simple
 /// string content and structured content. Role can include `assistant` for providing
 /// previous assistant responses.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder, ToSchema)]
 #[builder(
     name = "EasyInputMessageArgs",
     pattern = "mutable",
@@ -373,7 +374,7 @@ pub struct EasyInputMessage {
 ///
 /// This variant requires structured content (not a simple string) and does not support
 /// the `assistant` role (use OutputMessage for that). status is populated when items are returned via API.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder, ToSchema)]
 #[builder(
     name = "InputMessageArgs",
     pattern = "mutable",
@@ -397,7 +398,7 @@ pub struct InputMessage {
 
 /// The role for an input message - can only be `user`, `system`, or `developer`.
 /// This type ensures type safety by excluding the `assistant` role (use OutputMessage for that).
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum InputRole {
     #[default]
@@ -407,7 +408,7 @@ pub enum InputRole {
 }
 
 /// Content for EasyInputMessage - can be a simple string or structured list.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum EasyInputContent {
     /// A text input to the model.
@@ -417,7 +418,7 @@ pub enum EasyInputContent {
 }
 
 /// Parts of a message: text, image, file, or audio.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InputContent {
     /// A text input to the model.
@@ -429,13 +430,13 @@ pub enum InputContent {
     InputFile(InputFileContent),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct InputTextContent {
     /// The text input to the model.
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder, ToSchema)]
 #[builder(
     name = "InputImageArgs",
     pattern = "mutable",
@@ -456,7 +457,7 @@ pub struct InputImageContent {
     pub image_url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder, ToSchema)]
 #[builder(
     name = "InputFileArgs",
     pattern = "mutable",
@@ -479,13 +480,13 @@ pub struct InputFileContent {
     filename: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct Conversation {
     /// The unique ID of the conversation.
     pub id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum ConversationParam {
     /// The unique ID of the conversation.
@@ -494,7 +495,7 @@ pub enum ConversationParam {
     Object(Conversation),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, ToSchema)]
 pub enum IncludeEnum {
     #[serde(rename = "file_search_call.results")]
     FileSearchCallResults,
@@ -514,7 +515,7 @@ pub enum IncludeEnum {
     MessageOutputTextLogprobs,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ResponseStreamOptions {
     /// When true, stream obfuscation will be enabled. Stream obfuscation adds
     /// random characters to an `obfuscation` field on streaming delta events to
@@ -528,7 +529,7 @@ pub struct ResponseStreamOptions {
 }
 
 /// Builder for a Responses API request.
-#[derive(Clone, Serialize, Deserialize, Debug, Default, Builder, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, Builder, PartialEq, ToSchema)]
 #[builder(
     name = "CreateResponseArgs",
     pattern = "mutable",
@@ -641,7 +642,7 @@ pub struct CreateResponse {
 
     /// The retention policy for the prompt cache. Set to `24h` to enable extended prompt caching,
     /// which keeps cached prefixes active for longer, up to a maximum of 24 hours. [Learn
-    /// more](https://platform.openai.com/docs/guides/prompt-caching#prompt-cache-retention).    
+    /// more](https://platform.openai.com/docs/guides/prompt-caching#prompt-cache-retention).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_retention: Option<PromptCacheRetention>,
 
@@ -755,7 +756,7 @@ pub enum ResponsePromptVariables {
     Custom(serde_json::Value),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct Prompt {
     /// The unique identifier of the prompt template to use.
     pub id: String,
@@ -771,7 +772,7 @@ pub struct Prompt {
     pub variables: Option<ResponsePromptVariables>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTier {
     #[default]
@@ -783,20 +784,20 @@ pub enum ServiceTier {
 }
 
 /// Truncation strategies.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Truncation {
     Auto,
     Disabled,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct Billing {
     pub payer: String,
 }
 
 /// o-series reasoning settings.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, Builder, ToSchema)]
 #[builder(
     name = "ReasoningArgs",
     pattern = "mutable",
@@ -825,7 +826,7 @@ pub struct Reasoning {
 }
 
 /// o-series reasoning settings.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Verbosity {
     Low,
@@ -833,7 +834,7 @@ pub enum Verbosity {
     High,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ReasoningSummary {
     Auto,
@@ -842,7 +843,7 @@ pub enum ReasoningSummary {
 }
 
 /// The retention policy for the prompt cache.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
 pub enum PromptCacheRetention {
     #[serde(rename = "in-memory")]
     InMemory,
@@ -851,7 +852,7 @@ pub enum PromptCacheRetention {
 }
 
 /// Configuration for text response format.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ResponseTextParam {
     /// An object specifying the format that the model must output.
     ///
@@ -876,7 +877,7 @@ pub struct ResponseTextParam {
     pub verbosity: Option<Verbosity>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TextResponseFormatConfiguration {
     /// Default response format. Used to generate text responses.
@@ -892,7 +893,7 @@ pub enum TextResponseFormatConfiguration {
 }
 
 /// Definitions for model-callable tools.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Tool {
     /// Defines a function in your own code the model can choose to call. Learn more about [function
@@ -1285,14 +1286,14 @@ pub enum ImageGenToolSize {
     Size1536x1024,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolChoiceAllowedMode {
     Auto,
     Required,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ToolChoiceAllowed {
     /// Constrains the tools available to the model to a pre-defined set.
     ///
@@ -1316,7 +1317,7 @@ pub struct ToolChoiceAllowed {
 
 /// The type of hosted tool the model should to use. Learn more about
 /// [built-in tools](https://platform.openai.com/docs/guides/tools).
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ToolChoiceTypes {
     FileSearch,
@@ -1393,7 +1394,7 @@ pub enum ToolChoiceOptions {
 }
 
 /// Error returned by the API when a request fails.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ErrorObject {
     /// The error code for the response.
     pub code: String,
@@ -1402,20 +1403,20 @@ pub struct ErrorObject {
 }
 
 /// Details about an incomplete response.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct IncompleteDetails {
     /// The reason why the response is incomplete.
     pub reason: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct TopLogProb {
     pub bytes: Vec<u8>,
     pub logprob: f64,
     pub token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct LogProb {
     pub bytes: Vec<u8>,
     pub logprob: f64,
@@ -1423,7 +1424,7 @@ pub struct LogProb {
     pub top_logprobs: Vec<TopLogProb>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ResponseTopLobProb {
     /// The log probability of this token.
     pub logprob: f64,
@@ -1431,7 +1432,7 @@ pub struct ResponseTopLobProb {
     pub token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ResponseLogProb {
     /// The log probability of this token.
     pub logprob: f64,
@@ -1442,7 +1443,7 @@ pub struct ResponseLogProb {
 }
 
 /// A simple text output from the model.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct OutputTextContent {
     /// The annotations of the text output.
     pub annotations: Vec<Annotation>,
@@ -1451,7 +1452,7 @@ pub struct OutputTextContent {
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Annotation {
     /// A citation to a file.
@@ -1464,7 +1465,7 @@ pub enum Annotation {
     FilePath(FilePath),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct FileCitationBody {
     /// The ID of the file.
     file_id: String,
@@ -1474,7 +1475,7 @@ pub struct FileCitationBody {
     index: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct UrlCitationBody {
     /// The index of the last character of the URL citation in the message.
     end_index: u32,
@@ -1486,7 +1487,7 @@ pub struct UrlCitationBody {
     url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ContainerFileCitationBody {
     /// The ID of the container file.
     container_id: String,
@@ -1500,7 +1501,7 @@ pub struct ContainerFileCitationBody {
     start_index: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct FilePath {
     /// The ID of the file.
     file_id: String,
@@ -1509,14 +1510,14 @@ pub struct FilePath {
 }
 
 /// A refusal explanation from the model.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct RefusalContent {
     /// The refusal explanation from the model.
     pub refusal: String,
 }
 
 /// A message generated by the model.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct OutputMessage {
     /// The content of the output message.
     pub content: Vec<OutputMessageContent>,
@@ -1531,7 +1532,7 @@ pub struct OutputMessage {
     //pub r#type: MessageType,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum MessageType {
     #[default]
@@ -1540,14 +1541,14 @@ pub enum MessageType {
 
 /// The role for an output message - always `assistant`.
 /// This type ensures type safety by only allowing the assistant role.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum AssistantRole {
     #[default]
     Assistant,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutputMessageContent {
     /// A text output from the model.
@@ -2354,7 +2355,7 @@ pub struct MCPApprovalRequest {
     pub server_label: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum Instructions {
     /// A text input to the model, equivalent to a text input with the `developer` role.
@@ -2364,7 +2365,7 @@ pub enum Instructions {
 }
 
 /// The complete response returned by the Responses API.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct Response {
     /// Whether to run the model response in the background.
     /// [Learn more](https://platform.openai.com/docs/guides/background).
@@ -2461,7 +2462,7 @@ pub struct Response {
 
     /// The retention policy for the prompt cache. Set to `24h` to enable extended prompt caching,
     /// which keeps cached prefixes active for longer, up to a maximum of 24 hours. [Learn
-    /// more](https://platform.openai.com/docs/guides/prompt-caching#prompt-cache-retention).    
+    /// more](https://platform.openai.com/docs/guides/prompt-caching#prompt-cache-retention).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_retention: Option<PromptCacheRetention>,
 
@@ -2573,7 +2574,7 @@ pub enum Status {
 }
 
 /// Output item
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum OutputItem {
