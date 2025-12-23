@@ -15,3 +15,9 @@ impl From<serde_json::Value> for Metadata {
         Self(value)
     }
 }
+
+impl Metadata {
+    pub fn as_value(&self) -> &serde_json::Value {
+        &self.0
+    }
+}
