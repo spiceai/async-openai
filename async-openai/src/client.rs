@@ -354,7 +354,8 @@ impl<C: Config> Client<C> {
     }
 
     /// Make a POST request to {path} and deserialize the response body
-    pub async fn post<I, O>(
+    #[allow(unused)]
+    pub(crate) async fn post<I, O>(
         &self,
         path: &str,
         request: I,
@@ -563,7 +564,8 @@ impl<C: Config> Client<C> {
     }
 
     /// Make HTTP POST request to receive SSE
-    pub async fn post_stream<I, O>(
+    #[allow(unused)]
+    pub(crate) async fn post_stream<I, O>(
         &self,
         path: &str,
         request: I,
