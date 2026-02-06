@@ -53,6 +53,7 @@ pub enum ComparisonType {
 
 /// Combine multiple filters using `and` or `or`.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[schema(no_recursion)]
 pub struct CompoundFilter {
     /// 'Type of operation: `and` or `or`.'
     pub r#type: CompoundType,
