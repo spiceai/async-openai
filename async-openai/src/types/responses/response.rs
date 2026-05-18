@@ -362,6 +362,7 @@ pub struct CustomToolCallOutput {
 #[builder(build_fn(error = "OpenAIError"))]
 pub struct EasyInputMessage {
     /// The type of the message input. Always set to `message`.
+    #[serde(default)]
     pub r#type: MessageType,
     /// The role of the message input. One of `user`, `assistant`, `system`, or `developer`.
     pub role: Role,
