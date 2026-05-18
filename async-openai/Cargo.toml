@@ -212,6 +212,10 @@ name = "ser_de"
 required-features = ["chat-completion-types"]
 
 [[test]]
+name = "responses_ser_de"
+required-features = ["response-types"]
+
+[[test]]
 name = "whisper"
 required-features = ["audio"]
 
