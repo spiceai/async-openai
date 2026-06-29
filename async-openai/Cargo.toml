@@ -171,7 +171,7 @@ reqwest = { version = "0.13", features = [
   "multipart",
   "query",
 ], default-features = false, optional = true }
-reqwest-eventsource = { git = "https://github.com/spiceai/reqwest-eventsource", rev = "eb11e695128ce264bf05e4220ce2311c25992c73", optional = true }
+reqwest-eventsource = { git = "https://github.com/spiceai/reqwest-eventsource", rev = "eb11e695128ce264bf05e4220ce2311c25992c73", optional = true } # branch: spiceai
 thiserror = { version = "2", optional = true }
 tokio = { version = "1", features = ["fs", "macros"], optional = true }
 tokio-stream = { version = "0.1", optional = true }
