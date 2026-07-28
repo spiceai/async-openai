@@ -407,8 +407,7 @@ mod tests {
         );
     }
 
-    /// The organisation id reaches the per-request detail, as it always has, but
-    /// not the summary.
+    /// The organisation id belongs to the per-request detail, not the summary.
     #[test]
     fn the_summary_carries_no_organisation_id() {
         let events = Captured::default();
