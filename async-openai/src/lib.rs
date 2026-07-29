@@ -273,6 +273,8 @@ mod impls;
 mod model;
 #[cfg(feature = "moderation")]
 mod moderation;
+#[cfg(feature = "_api")]
+mod rate_limit;
 #[cfg(feature = "realtime")]
 mod realtime;
 #[cfg(feature = "_api")]

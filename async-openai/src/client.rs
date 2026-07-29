@@ -503,7 +503,7 @@ impl<C: Config> Client<C> {
     {
         let client = self.http_client.clone();
 
-        backoff::future::retry(self.backoff.clone(), || async {
+        let attempt = || async {
             let request = request_maker().await.map_err(backoff::Error::Permanent)?;
             let response = client
                 .execute(request)
@@ -527,7 +527,7 @@ impl<C: Config> Client<C> {
                                 && api_error.r#type != Some("insufficient_quota".to_string())
                             {
                                 // Rate limited retry...
-                                tracing::warn!("Rate limited: {}", api_error.message);
+                                crate::rate_limit::log_throttled(&api_error.message);
                                 Err(backoff::Error::Transient {
                                     err: OpenAIError::ApiError(api_error),
                                     retry_after: None,
@@ -539,6 +539,14 @@ impl<C: Config> Client<C> {
                         _ => Err(backoff::Error::Permanent(e)),
                     }
                 }
+            }
+        };
+
+        // Attributes the backoff a retry is about to sleep for to the model that
+        // was throttled, for the summary that `log_throttled` emits.
+        backoff::future::retry_notify(self.backoff.clone(), attempt, |err, backoff| {
+            if let OpenAIError::ApiError(api_error) = &err {
+                crate::rate_limit::record_backoff(&api_error.message, backoff);
             }
         })
         .await
