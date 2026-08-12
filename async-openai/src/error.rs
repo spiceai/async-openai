@@ -8,25 +8,39 @@ pub enum OpenAIError {
     /// Underlying error from reqwest library after an API call was made
     #[error("http error: {0}")]
     Reqwest(#[from] reqwest::Error),
-    /// OpenAI returns error object with details of API call failure
+    /// OpenAI returns error object with details of API call failure, along
+    /// with the HTTP status code from the response.
     #[error("{0}")]
-    ApiError(ApiError),
+    ApiError(ApiErrorResponse),
     /// Error when a response cannot be deserialized into a Rust type
     #[error("failed to deserialize api response: error:{0} content:{1}")]
     JSONDeserialize(serde_json::Error, String),
+    #[cfg(all(feature = "_api", not(target_family = "wasm")))]
     /// Error on the client side when saving file to file system
     #[error("failed to save file: {0}")]
     FileSaveError(String),
+    #[cfg(all(feature = "_api", not(target_family = "wasm")))]
     /// Error on the client side when reading file from file system
     #[error("failed to read file: {0}")]
     FileReadError(String),
     /// Error on SSE streaming
     #[error("stream failed: {0}")]
     StreamError(Box<StreamError>),
+    /// Error from middlewares
+    #[cfg(feature = "middleware")]
+    #[error(transparent)]
+    Boxed(Box<dyn std::error::Error + Send + Sync + 'static>),
     /// Error from client side validation
     /// or when builder fails to build request before making API call
     #[error("invalid args: {0}")]
     InvalidArgument(String),
+}
+
+#[cfg(all(feature = "_api", feature = "middleware"))]
+impl From<tower::BoxError> for OpenAIError {
+    fn from(error: tower::BoxError) -> Self {
+        OpenAIError::Boxed(error)
+    }
 }
 
 #[cfg(not(feature = "_api"))]
@@ -52,9 +66,6 @@ impl std::error::Error for OpenAIError {}
 #[cfg(feature = "_api")]
 #[derive(Debug, thiserror::Error)]
 pub enum StreamError {
-    /// Underlying error from reqwest_eventsource library when reading the stream
-    #[error("{0}")]
-    ReqwestEventSource(#[from] reqwest_eventsource::Error),
     /// Error when a stream event does not match one of the expected values
     #[error("Unknown event: {0:#?}")]
     UnknownEvent(eventsource_stream::Event),
@@ -97,6 +108,28 @@ impl std::fmt::Display for ApiError {
     }
 }
 
+impl std::error::Error for ApiError {}
+
+/// `ApiError` paired with the HTTP status code from the response.
+#[cfg(feature = "_api")]
+#[derive(Debug, Clone)]
+pub struct ApiErrorResponse {
+    /// HTTP status code
+    pub status_code: reqwest::StatusCode,
+    /// Parsed error from response
+    pub api_error: ApiError,
+}
+
+#[cfg(feature = "_api")]
+impl std::fmt::Display for ApiErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.status_code, self.api_error)
+    }
+}
+
+#[cfg(feature = "_api")]
+impl std::error::Error for ApiErrorResponse {}
+
 /// Wrapper to deserialize the error object nested in "error" JSON key
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WrappedError {
@@ -109,11 +142,4 @@ pub(crate) fn map_deserialization_error(e: serde_json::Error, bytes: &[u8]) -> O
     tracing::error!("failed deserialization of: {}", json_content);
 
     OpenAIError::JSONDeserialize(e, json_content.to_string())
-}
-
-#[cfg(feature = "_api")]
-impl From<reqwest_eventsource::Error> for OpenAIError {
-    fn from(e: reqwest_eventsource::Error) -> Self {
-        OpenAIError::StreamError(Box::new(StreamError::ReqwestEventSource(e)))
-    }
 }

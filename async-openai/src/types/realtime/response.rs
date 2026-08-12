@@ -129,10 +129,10 @@ pub struct ResponseAudioOutput {
     /// The format of the output audio.
     pub format: RealtimeAudioFormats,
 
-    /// The voice the model uses to respond. Voice cannot be changed during the session once
-    /// the model has responded with audio at least once. Current voice options are
-    /// `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, and `cedar`.
-    /// We recommend `marin` and `cedar` for best quality.
+    /// The voice the model uses to respond. Supported built-in voices are `alloy`, `ash`, `ballad`,
+    /// `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, and `cedar`. Voice cannot be changed during
+    /// the session once the model has responded with audio at least once. We recommend `marin` and `cedar`
+    /// for best quality.
     pub voice: RealtimeVoice,
 }
 
@@ -211,6 +211,15 @@ pub struct RealtimeResponseCreateParams {
     /// Tools available to the model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<RealtimeTool>>,
+
+    /// Whether the model may call multiple tools in parallel. Only honored for reasoning-capable
+    /// Realtime models such as `gpt-realtime-2`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parallel_tool_calls: Option<bool>,
+
+    /// Configuration for reasoning-capable Realtime models such as `gpt-realtime-2`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<crate::types::realtime::RealtimeReasoning>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

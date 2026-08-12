@@ -3,10 +3,12 @@ use crate::{
     error::OpenAIError,
     types::responses::{
         CompactResource, CompactResponseRequest, CreateResponse, DeleteResponse, Response,
-        ResponseItemList, ResponseStream, TokenCountsBody, TokenCountsResource,
+        ResponseItemList, TokenCountsBody, TokenCountsResource,
     },
     Client, RequestOptions,
 };
+
+use crate::types::responses::ResponseStream;
 
 pub struct Responses<'c, C: Config> {
     client: &'c Client<C>,
@@ -48,7 +50,7 @@ impl<'c, C: Config> Responses<'c, C> {
         T0 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static"
+        where_clause = "R: crate::traits::MaybeSend + 'static"
     )]
     #[allow(unused_mut)]
     pub async fn create_stream(
@@ -64,10 +66,9 @@ impl<'c, C: Config> Responses<'c, C> {
             }
             request.stream = Some(true);
         }
-        Ok(self
-            .client
+        self.client
             .post_stream("/responses", request, &self.request_options)
-            .await)
+            .await
     }
 
     /// Retrieves a model response with the given ID.
@@ -88,16 +89,15 @@ impl<'c, C: Config> Responses<'c, C> {
         T0 = std::fmt::Display,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static"
+        where_clause = "R: crate::traits::MaybeSend + 'static"
     )]
     pub async fn retrieve_stream(&self, response_id: &str) -> Result<ResponseStream, OpenAIError> {
         let mut request_options = self.request_options.clone();
         request_options.with_query(&[("stream", "true")])?;
 
-        Ok(self
-            .client
+        self.client
             .get_stream(&format!("/responses/{}", response_id), &request_options)
-            .await)
+            .await
     }
 
     /// Deletes a model response with the given ID.

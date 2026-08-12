@@ -22,8 +22,6 @@ use crate::moderation::Moderations;
 use crate::uploads::Uploads;
 #[cfg(feature = "video")]
 use crate::video::Videos;
-#[cfg(feature = "realtime")]
-use crate::Realtime;
 #[cfg(feature = "administration")]
 use crate::{
     admin::AdminAPIKeys, admin::AuditLogs, admin::Certificates, admin::GroupRoles,
@@ -34,6 +32,7 @@ use crate::{
     admin::UserRoles, admin::Users,
 };
 #[cfg(feature = "assistant")]
+#[allow(deprecated)]
 use crate::{
     assistants::Assistants, assistants::Messages, assistants::Runs, assistants::Steps,
     assistants::Threads,
@@ -46,18 +45,24 @@ use crate::{containers::ContainerFiles, containers::Containers};
 use crate::{evals::EvalRunOutputItems, evals::EvalRuns, evals::Evals};
 #[cfg(feature = "responses")]
 use crate::{responses::ConversationItems, responses::Conversations, responses::Responses};
+#[cfg(feature = "skill")]
+use crate::{skills::SkillVersions, skills::Skills};
 #[cfg(feature = "vectorstore")]
 use crate::{
     vectorstores::VectorStoreFileBatches, vectorstores::VectorStoreFiles,
     vectorstores::VectorStores,
 };
+#[cfg(feature = "realtime")]
+use crate::{Realtime, RealtimeTranslations};
 
 // request builder impls macro
 
 /// Macro to implement `RequestOptionsBuilder` for wrapper types containing `RequestOptions`
 #[cfg(feature = "_api")]
+#[allow(unused_macros)]
 macro_rules! impl_request_options_builder {
     ($type:ident) => {
+        #[allow(deprecated)]
         impl<'c, C: crate::config::Config> crate::traits::RequestOptionsBuilder for $type<'c, C> {
             fn options_mut(&mut self) -> &mut crate::RequestOptions {
                 &mut self.request_options
@@ -152,10 +157,16 @@ impl_request_options_builder!(ProjectCertificates);
 impl_request_options_builder!(Roles);
 #[cfg(feature = "realtime")]
 impl_request_options_builder!(Realtime);
+#[cfg(feature = "realtime")]
+impl_request_options_builder!(RealtimeTranslations);
 #[cfg(feature = "responses")]
 impl_request_options_builder!(Responses);
 #[cfg(feature = "assistant")]
 impl_request_options_builder!(Runs);
+#[cfg(feature = "skill")]
+impl_request_options_builder!(SkillVersions);
+#[cfg(feature = "skill")]
+impl_request_options_builder!(Skills);
 #[cfg(feature = "audio")]
 impl_request_options_builder!(Speech);
 #[cfg(feature = "assistant")]
