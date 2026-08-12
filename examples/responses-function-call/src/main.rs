@@ -134,6 +134,7 @@ async fn run_non_streaming() -> Result<(), Box<dyn Error>> {
     input_items.push(InputItem::Item(Item::FunctionCallOutput(
         FunctionCallOutputItemParam {
             call_id: function_call_request.call_id.clone(),
+            namespace: None,
             output: FunctionCallOutput::Text(function_result),
             id: None,
             status: None,
@@ -262,6 +263,7 @@ async fn run_streaming() -> Result<(), Box<dyn Error>> {
                                 name: name.clone(),
                                 arguments: arguments,
                                 call_id: call_id.clone(),
+                                namespace: None,
                                 id: Some(done.item_id.clone()),
                                 status: None,
                             });
@@ -313,6 +315,7 @@ async fn run_streaming() -> Result<(), Box<dyn Error>> {
     input_items.push(InputItem::Item(Item::FunctionCallOutput(
         FunctionCallOutputItemParam {
             call_id: function_call_request.call_id.clone(),
+            namespace: None,
             output: FunctionCallOutput::Text(function_result),
             id: None,
             status: None,

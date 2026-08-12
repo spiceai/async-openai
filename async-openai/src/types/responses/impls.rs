@@ -9,12 +9,12 @@ use crate::types::responses::{
     ImageGenTool, ImageGenToolCall, InputContent, InputFileContent, InputImageContent, InputItem,
     InputMessage, InputParam, InputTextContent, Item, ItemReference, ItemReferenceType,
     LocalShellToolCall, LocalShellToolCallOutput, MCPApprovalRequest, MCPApprovalResponse,
-    MCPListTools, MCPToolCall, MessageItem, MessageType, OutputMessage, OutputMessageContent,
-    OutputTextContent, Prompt, Reasoning, ReasoningEffort, ReasoningItem, ReasoningSummary,
-    RefusalContent, ResponseFormatJsonSchema, ResponsePromptVariables, ResponseStreamOptions,
-    ResponseTextParam, Role, TextResponseFormatConfiguration, Tool, ToolChoiceCustom,
-    ToolChoiceFunction, ToolChoiceMCP, ToolChoiceOptions, ToolChoiceParam, ToolChoiceTypes,
-    WebSearchTool, WebSearchToolCall,
+    MCPListTools, MCPToolCall, MessageItem, MessageType, NamespaceToolParam, OutputMessage,
+    OutputMessageContent, OutputTextContent, Prompt, Reasoning, ReasoningEffort, ReasoningItem,
+    ReasoningSummary, RefusalContent, ResponseFormatJsonSchema, ResponsePromptVariables,
+    ResponseStreamOptions, ResponseTextParam, Role, TextResponseFormatConfiguration, Tool,
+    ToolChoiceCustom, ToolChoiceFunction, ToolChoiceMCP, ToolChoiceOptions, ToolChoiceParam,
+    ToolChoiceTypes, WebSearchTool, WebSearchToolCall,
 };
 
 impl<S: Into<String>> From<S> for EasyInputMessage {
@@ -23,6 +23,7 @@ impl<S: Into<String>> From<S> for EasyInputMessage {
             r#type: MessageType::Message,
             role: Role::User,
             content: EasyInputContent::Text(value.into()),
+            phase: None,
         }
     }
 }
@@ -128,6 +129,7 @@ macro_rules! impl_inputparam_easy_from_collection {
                                 r#type: MessageType::Message,
                                 role: Role::User,
                                 content: EasyInputContent::Text($map(value)),
+                                phase: None,
                             })
                         })
                         .collect(),
@@ -145,6 +147,7 @@ macro_rules! impl_inputparam_easy_from_collection {
                                 r#type: MessageType::Message,
                                 role: Role::User,
                                 content: EasyInputContent::Text($map(value)),
+                                phase: None,
                             })
                         })
                         .collect(),
@@ -162,6 +165,7 @@ macro_rules! impl_inputparam_easy_from_collection {
                                 r#type: MessageType::Message,
                                 role: Role::User,
                                 content: EasyInputContent::Text($clone(value)),
+                                phase: None,
                             })
                         })
                         .collect(),
@@ -573,6 +577,12 @@ impl From<ImageGenTool> for Tool {
 impl From<CustomToolParam> for Tool {
     fn from(tool: CustomToolParam) -> Self {
         Tool::Custom(tool)
+    }
+}
+
+impl From<NamespaceToolParam> for Tool {
+    fn from(tool: NamespaceToolParam) -> Self {
+        Tool::Namespace(tool)
     }
 }
 
