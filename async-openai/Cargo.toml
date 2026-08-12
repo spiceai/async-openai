@@ -137,13 +137,11 @@ full = [
 # Internal feature to enable API dependencies
 _api = [
     "dep:async-openai-macros",
-    "dep:backoff",
     "dep:base64",
     "dep:bytes",
     "dep:futures",
     "dep:rand",
     "dep:reqwest",
-    "dep:reqwest-eventsource",
     "dep:thiserror",
     "dep:tokio",
     "dep:tokio-stream",
@@ -168,7 +166,6 @@ utoipa = "5.2.0"
 # API dependencies - only needed when API features are enabled
 # We use a feature gate to enable these when any API feature is enabled
 async-openai-macros = { path = "../async-openai-macros", version = "0.3.0", optional = true }
-backoff = { version = "0.4.0", features = ["tokio"], optional = true }
 base64 = { version = "0.22", optional = true }
 futures = { version = "0.3", optional = true }
 rand = { version = "0.9", optional = true }
@@ -178,23 +175,26 @@ reqwest = { version = "0.13", features = [
   "multipart",
   "query",
 ], default-features = false, optional = true }
-reqwest-eventsource = { git = "https://github.com/spiceai/reqwest-eventsource", rev = "eb11e695128ce264bf05e4220ce2311c25992c73", optional = true } # branch: spiceai
 thiserror = { version = "2", optional = true }
-tokio = { version = "1", features = ["fs", "macros"], optional = true }
-tokio-stream = { version = "0.1", optional = true }
-tokio-util = { version = "0.7", features = ["codec", "io-util"], optional = true }
 tracing = { version = "0.1", optional = true }
 secrecy = { version = "0.10", features = ["serde"], optional = true }
 eventsource-stream = { version = "0.2", optional = true }
 serde_urlencoded = { version = "0.7", optional = true }
 url = { version = "2.5", optional = true }
 tower = { version = "0.5", features = ["limit", "retry", "timeout", "util"], optional = true }
-# For Realtime websocket
-tokio-tungstenite = { version = "0.28", optional = true, default-features = false }
 # For Webhook signature verification
 hmac = { version = "0.12", optional = true, default-features = false}
 sha2 = { version = "0.10", optional = true, default-features = false }
 hex = { version = "0.4", optional = true, default-features = false }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", features = ["fs", "macros"], optional = true }
+tokio-stream = { version = "0.1", optional = true }
+tokio-util = { version = "0.7", features = ["codec", "io-util"], optional = true }
+tokio-tungstenite = { version = "0.28", optional = true, default-features = false }
+
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
