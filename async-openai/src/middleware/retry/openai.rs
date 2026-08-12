@@ -3,7 +3,7 @@ use std::{future::Future, pin::Pin, time::Duration};
 use reqwest::{header::HeaderMap, Response};
 
 use crate::{
-    error::{ApiErrorResponse, OpenAIError, WrappedError},
+    error::{OpenAIError, WrappedError},
     executor::HttpRequestFactory,
 };
 
@@ -165,7 +165,6 @@ where
         let (final_result, headers, retry_after) = match result {
             Ok(response) if response.status().is_success() => return Ok(response),
             Ok(response) if response.status().as_u16() == 429 => {
-                let status_code = response.status();
                 let headers = response.headers().clone();
                 let retry_after = retry_after(&headers);
                 let bytes = match response.bytes().await {
@@ -178,16 +177,10 @@ where
                         // 429 and insufficient_quota are treated as permanent error.
                         // https://developers.openai.com/api/docs/guides/error-codes
                         if wrapped_error.error.r#type.as_deref() == Some(INSUFFICIENT_QUOTA) {
-                            return Err(OpenAIError::ApiError(ApiErrorResponse {
-                                status_code,
-                                api_error: wrapped_error.error,
-                            }));
+                            return Err(OpenAIError::ApiError(wrapped_error.error));
                         }
 
-                        OpenAIError::ApiError(ApiErrorResponse {
-                            status_code,
-                            api_error: wrapped_error.error,
-                        })
+                        OpenAIError::ApiError(wrapped_error.error)
                     }
                     Err(error) => {
                         return Err(OpenAIError::JSONDeserialize(
@@ -198,7 +191,7 @@ where
                 };
 
                 let message = match &error {
-                    OpenAIError::ApiError(response) => response.api_error.message.as_str(),
+                    OpenAIError::ApiError(response) => response.message.as_str(),
                     _ => "rate-limited request",
                 };
                 crate::rate_limit::log_throttled(message);
@@ -232,7 +225,7 @@ where
         attempts += 1;
 
         if let Err(OpenAIError::ApiError(response)) = &final_result {
-            crate::rate_limit::record_backoff(&response.api_error.message, delay);
+            crate::rate_limit::record_backoff(&response.message, delay);
         }
 
         // on wasm there is no standard sleep so we retry immediately
