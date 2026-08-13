@@ -1,8 +1,8 @@
 #![cfg(feature = "response-types")]
 
 use async_openai::types::responses::{
-    EasyInputContent, ImageDetail, InputContent, InputItem, InputRole, Item, MessageItem,
-    MessageType, OutputItem, ResponseStreamEvent, ResponseTextParam, Role,
+    CreateResponse, EasyInputContent, ImageDetail, InputContent, InputItem, InputRole, Item,
+    MessageItem, MessageType, OutputItem, ResponseStreamEvent, ResponseTextParam, Role,
     TextResponseFormatConfiguration, WebSearchApproximateLocation,
     WebSearchApproximateLocationType, WebSearchToolCallStatus,
 };
@@ -200,5 +200,37 @@ fn codex_additional_tools_input_round_trips() {
 
     let round_tripped =
         serde_json::to_value(input).expect("Codex additional tools should serialize");
+    assert_eq!(round_tripped, fixture);
+}
+
+#[test]
+fn codex_client_metadata_round_trips() {
+    let fixture = json!({
+        "model": "gpt-5.6-terra",
+        "input": "hello",
+        "client_metadata": {
+            "x-codex-installation-id": "installation",
+            "thread_id": "thread",
+            "session_id": "session",
+            "x-codex-window-id": "window",
+            "turn_id": "turn",
+            "x-codex-turn-metadata": "metadata"
+        }
+    });
+
+    let request: CreateResponse =
+        serde_json::from_value(fixture.clone()).expect("Codex metadata should deserialize");
+    let metadata = request
+        .client_metadata
+        .as_ref()
+        .expect("Codex metadata should be present");
+    assert_eq!(metadata.installation_id.as_deref(), Some("installation"));
+    assert_eq!(metadata.thread_id.as_deref(), Some("thread"));
+    assert_eq!(metadata.session_id.as_deref(), Some("session"));
+    assert_eq!(metadata.window_id.as_deref(), Some("window"));
+    assert_eq!(metadata.turn_id.as_deref(), Some("turn"));
+    assert_eq!(metadata.turn_metadata.as_deref(), Some("metadata"));
+
+    let round_tripped = serde_json::to_value(request).expect("Codex metadata should serialize");
     assert_eq!(round_tripped, fixture);
 }
