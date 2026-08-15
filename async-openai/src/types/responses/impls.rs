@@ -280,6 +280,7 @@ impl From<ReasoningEffort> for Reasoning {
         Reasoning {
             effort: Some(effort),
             summary: None,
+            context: None,
         }
     }
 }
@@ -289,6 +290,7 @@ impl From<ReasoningSummary> for Reasoning {
         Reasoning {
             effort: None,
             summary: Some(summary),
+            context: None,
         }
     }
 }

@@ -664,6 +664,10 @@ pub struct InputMessage {
     /// The role of the message input. One of `user`, `system`, or `developer`.
     /// Note: `assistant` is NOT allowed here; use OutputMessage instead.
     pub role: InputRole,
+    /// The unique ID of the message. Populated when a client replays a prior
+    /// message as input; preserved so a gateway forwards it verbatim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
     /// Populated when items are returned via API.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1140,6 +1144,10 @@ pub struct Reasoning {
     /// `gpt-5`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<ReasoningSummary>,
+    /// Reasoning context scope supplied by Codex clients (e.g. `all_turns`). Kept
+    /// as a free string so an unrecognized value is forwarded, not rejected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
 }
 
 /// o-series reasoning settings.
@@ -1821,8 +1829,11 @@ pub struct ResponseLogProb {
 /// A simple text output from the model.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct OutputTextContent {
-    /// The annotations of the text output.
+    /// The annotations of the text output. Omitted when a client replays a prior
+    /// assistant message as input, so it defaults to empty rather than failing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub annotations: Vec<Annotation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub logprobs: Option<Vec<LogProb>>,
     /// The text output from the model.
     pub text: String,
@@ -1907,8 +1918,11 @@ pub struct OutputMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<MessagePhase>,
     /// The status of the message input. One of `in_progress`, `completed`, or
-    /// `incomplete`. Populated when input items are returned via API.
-    pub status: OutputStatus,
+    /// `incomplete`. Populated when items are returned via the API, but omitted
+    /// when a client (e.g. Codex) replays a prior assistant message as input, so
+    /// it must be optional or the whole input array fails to deserialize.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<OutputStatus>,
     ///// The type of the output message. Always `message`.
     //pub r#type: MessageType,
 }
@@ -3144,6 +3158,10 @@ pub struct CustomToolCall {
     pub name: String,
     /// The unique ID of the custom tool call in the OpenAI platform.
     pub id: String,
+    /// The status of the item, present when a client replays a prior call as
+    /// input. Preserved so a gateway forwards it verbatim.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<FunctionCallStatus>,
 }
 
 /// A custom tool call item returned by the API.
