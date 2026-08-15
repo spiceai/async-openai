@@ -412,12 +412,22 @@ impl<C: Config> Client<C> {
             let request = request.clone();
 
             async move {
-                let request_builder = request_parts
+                let mut http_request = request_parts
                     .build_request_builder()
-                    .header(reqwest::header::CONTENT_TYPE, "application/json")
-                    .body(request.clone());
+                    .body(request.clone())
+                    .build()?;
 
-                Ok(request_builder.build()?)
+                // Set Content-Type by inserting (replacing), not appending. A
+                // Config that forwards caller-supplied headers may already carry
+                // a Content-Type; appending a second one via
+                // RequestBuilder::header sends two Content-Type headers, which
+                // some backends reject as an unsupported content type.
+                http_request.headers_mut().insert(
+                    reqwest::header::CONTENT_TYPE,
+                    reqwest::header::HeaderValue::from_static("application/json"),
+                );
+
+                Ok(http_request)
             }
         }))
     }
@@ -1181,6 +1191,61 @@ mod tests {
         assert!(
             upstream_dropped.load(Ordering::SeqCst),
             "reader task leaked the upstream response after the stream was dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn json_post_sends_single_content_type_when_caller_supplies_one() {
+        // Regression: a Config (or per-request options) that forwards a
+        // caller's Content-Type must not lead to two Content-Type headers on
+        // the outgoing request. Codex's ChatGPT backend rejects a doubled
+        // Content-Type with `{"detail":"Unsupported content type"}`.
+        let content_type_count = Arc::new(AtomicUsize::new(usize::MAX));
+        let service = {
+            let content_type_count = content_type_count.clone();
+            ServiceBuilder::new().service(service_fn(move |factory: HttpRequestFactory| {
+                let content_type_count = content_type_count.clone();
+                async move {
+                    let request = factory.build().await?;
+                    let count = request
+                        .headers()
+                        .get_all(reqwest::header::CONTENT_TYPE)
+                        .iter()
+                        .count();
+                    content_type_count.store(count, Ordering::SeqCst);
+                    Ok::<reqwest::Response, OpenAIError>(
+                        HttpResponse::builder()
+                            .status(200)
+                            .header("content-type", "application/json")
+                            .body(reqwest::Body::from("{\"ok\":true}"))
+                            .unwrap()
+                            .into(),
+                    )
+                }
+            }))
+        };
+
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
+
+        let mut request_options = RequestOptions::new();
+        request_options
+            .with_header(reqwest::header::CONTENT_TYPE, "application/json")
+            .unwrap();
+
+        let _: serde_json::Value = client
+            .post("/responses", json!({ "stream": false }), &request_options)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            content_type_count.load(Ordering::SeqCst),
+            1,
+            "outgoing request must carry exactly one Content-Type header"
         );
     }
 }
