@@ -660,6 +660,18 @@ impl<C: Config> Client<C> {
         Ok(stream(response).await)
     }
 
+    async fn execute_stream_with_headers<O>(
+        &self,
+        request_factory: HttpRequestFactory,
+    ) -> Result<(crate::types::stream::StreamResponse<O>, HeaderMap), OpenAIError>
+    where
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+    {
+        let response = self.execute_response(request_factory).await?;
+        let headers = response.headers().clone();
+        Ok((stream(response).await, headers))
+    }
+
     async fn execute_stream_mapped_raw_events<O>(
         &self,
         request_factory: HttpRequestFactory,
@@ -695,6 +707,27 @@ impl<C: Config> Client<C> {
         // Stream setup is still request/response first. We only create the SSE
         // stream after the HTTP layer has returned a response object.
         self.execute_stream(request_factory).await
+    }
+
+    /// Make HTTP POST request to receive SSE, also returning the initial response headers.
+    #[allow(unused)]
+    pub(crate) async fn post_stream_with_headers<I, O>(
+        &self,
+        path: &str,
+        request: I,
+        request_options: &RequestOptions,
+    ) -> Result<(crate::types::stream::StreamResponse<O>, HeaderMap), OpenAIError>
+    where
+        I: Serialize,
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+    {
+        let request_factory = self.build_request_factory_with_json(
+            reqwest::Method::POST,
+            path,
+            request,
+            request_options,
+        )?;
+        self.execute_stream_with_headers(request_factory).await
     }
 
     #[allow(unused)]

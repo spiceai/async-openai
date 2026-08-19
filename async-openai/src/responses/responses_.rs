@@ -43,6 +43,22 @@ impl<'c, C: Config> Responses<'c, C> {
             .await
     }
 
+    /// Like [`Self::create`], but also returns the backend's raw response headers
+    /// (e.g. `x-codex-turn-state`, which a Codex-compatible caller must replay on
+    /// the next request in the same turn).
+    pub async fn create_with_headers(
+        &self,
+        request: CreateResponse,
+    ) -> Result<(Response, reqwest::header::HeaderMap), OpenAIError> {
+        let (bytes, headers) = self
+            .client
+            .post_raw("/responses", request, &self.request_options)
+            .await?;
+        let response: Response = serde_json::from_slice(bytes.as_ref())
+            .map_err(|e| crate::error::map_deserialization_error(e, bytes.as_ref()))?;
+        Ok((response, headers))
+    }
+
     /// Creates a model response for the given input with streaming.
     ///
     /// Response events will be sent as server-sent events as they become available,
@@ -68,6 +84,24 @@ impl<'c, C: Config> Responses<'c, C> {
         }
         self.client
             .post_stream("/responses", request, &self.request_options)
+            .await
+    }
+
+    /// Like [`Self::create_stream`], but also returns the backend's raw response
+    /// headers (e.g. `x-codex-turn-state`, which a Codex-compatible caller must
+    /// replay on the next request in the same turn).
+    pub async fn create_stream_with_headers(
+        &self,
+        mut request: CreateResponse,
+    ) -> Result<(ResponseStream, reqwest::header::HeaderMap), OpenAIError> {
+        if matches!(request.stream, Some(false)) {
+            return Err(OpenAIError::InvalidArgument(
+                "When stream is false, use Responses::create_with_headers".into(),
+            ));
+        }
+        request.stream = Some(true);
+        self.client
+            .post_stream_with_headers("/responses", request, &self.request_options)
             .await
     }
 
