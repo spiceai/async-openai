@@ -1,22 +1,25 @@
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::{
     error::OpenAIError,
     types::responses::{
-        AnyItemReference, CodeInterpreterToolCall, ComputerToolCall, CustomToolCall,
-        CustomToolCallOutput, FileSearchToolCall, ImageGenToolCall, InputFileContent,
-        InputImageContent, InputItem, InputTextContent, LocalShellToolCall,
+        AnyItemReference, ApplyPatchToolCall, ApplyPatchToolCallOutput, CodeInterpreterToolCall,
+        CompactionBody, ComputerToolCall, ComputerToolCallOutputResource, CustomToolCall,
+        CustomToolCallOutput, FileSearchToolCall, FunctionShellCall, FunctionShellCallOutput,
+        FunctionToolCallOutputResource, FunctionToolCallResource, ImageGenToolCall,
+        InputFileContent, InputImageContent, InputItem, InputTextContent, LocalShellToolCall,
         LocalShellToolCallOutput, MCPApprovalRequest, MCPApprovalResponse, MCPListTools,
-        MCPToolCall, OutputTextContent, ReasoningItem, ReasoningTextContent, RefusalContent,
-        WebSearchToolCall,
+        MCPToolCall, MessagePhase, OutputTextContent, ReasoningItem, ReasoningTextContent,
+        RefusalContent, ToolSearchCall, ToolSearchOutput, WebSearchToolCall,
     },
 };
 
 use crate::types::Metadata;
 
 /// Represents a conversation object.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct ConversationResource {
     /// The unique ID of the conversation.
     pub id: String,
@@ -30,7 +33,7 @@ pub struct ConversationResource {
 
 /// Request to create a conversation.
 /// openapi spec type: CreateConversationBody
-#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq)]
+#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq, ToSchema)]
 #[builder(name = "CreateConversationRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option), default)]
@@ -47,7 +50,7 @@ pub struct CreateConversationRequest {
 }
 
 /// Request to update a conversation.
-#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq)]
+#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq, ToSchema)]
 #[builder(name = "UpdateConversationRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option), default)]
@@ -59,7 +62,7 @@ pub struct UpdateConversationRequest {
 }
 
 /// Represents a deleted conversation.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct DeleteConversationResponse {
     /// The unique ID of the deleted conversation.
     pub id: String,
@@ -70,7 +73,7 @@ pub struct DeleteConversationResponse {
 }
 
 /// Request to create conversation items.
-#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq)]
+#[derive(Clone, Serialize, Default, Debug, Deserialize, Builder, PartialEq, ToSchema)]
 #[builder(name = "CreateConversationItemsRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option), default)]
@@ -82,7 +85,7 @@ pub struct CreateConversationItemsRequest {
 }
 
 /// A list of Conversation items.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct ConversationItemList {
     /// The type of object returned, must be `list`.
     pub object: String,
@@ -96,7 +99,7 @@ pub struct ConversationItemList {
     pub last_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageStatus {
     InProgress,
@@ -104,7 +107,7 @@ pub enum MessageStatus {
     Completed,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageRole {
     Unknown,
@@ -117,18 +120,18 @@ pub enum MessageRole {
     Tool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct TextContent {
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct SummaryTextContent {
     /// A summary of the reasoning output from the model so far.
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct ComputerScreenContent {
     /// The URL of the screenshot image.
     pub image_url: Option<String>,
@@ -136,7 +139,7 @@ pub struct ComputerScreenContent {
     pub file_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MessageContent {
     InputText(InputTextContent),
@@ -150,7 +153,7 @@ pub enum MessageContent {
     InputFile(InputFileContent),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct Message {
     /// The unique ID of the message.
     pub id: String,
@@ -162,20 +165,34 @@ pub struct Message {
     pub role: MessageRole,
     /// The content of the message.
     pub content: Vec<MessageContent>,
+    /// Labels an `assistant` message as intermediate commentary (`commentary`) or the final
+    /// answer (`final_answer`). Not used for user messages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phase: Option<MessagePhase>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ConversationItem {
     Message(Message),
+    FunctionCall(FunctionToolCallResource),
+    FunctionCallOutput(FunctionToolCallOutputResource),
     FileSearchCall(FileSearchToolCall),
     WebSearchCall(WebSearchToolCall),
     ImageGenerationCall(ImageGenToolCall),
     ComputerCall(ComputerToolCall),
+    ComputerCallOutput(ComputerToolCallOutputResource),
+    ToolSearchCall(ToolSearchCall),
+    ToolSearchOutput(ToolSearchOutput),
     Reasoning(ReasoningItem),
+    Compaction(CompactionBody),
     CodeInterpreterCall(CodeInterpreterToolCall),
     LocalShellCall(LocalShellToolCall),
     LocalShellCallOutput(LocalShellToolCallOutput),
+    ShellCall(FunctionShellCall),
+    ShellCallOutput(FunctionShellCallOutput),
+    ApplyPatchCall(ApplyPatchToolCall),
+    ApplyPatchCallOutput(ApplyPatchToolCallOutput),
     McpListTools(MCPListTools),
     McpApprovalRequest(MCPApprovalRequest),
     McpApprovalResponse(MCPApprovalResponse),
@@ -187,7 +204,7 @@ pub enum ConversationItem {
 }
 
 /// Additional fields to include in the response.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IncludeParam {
     /// Include the sources of the web search tool call.
@@ -214,7 +231,7 @@ pub enum IncludeParam {
 }
 
 /// The order to return items in.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ListOrder {
     /// Return items in ascending order.

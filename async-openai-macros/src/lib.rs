@@ -82,7 +82,6 @@ pub fn byot(args: TokenStream, item: TokenStream) -> TokenStream {
                         {
                             type_param.bounds.extend(vec![bound.clone()]);
                         }
-
                         new_params.push(GenericParam::Type(type_param));
                         param_count += 1;
                         quote! { #pat_ident: #generic_ident }
@@ -124,7 +123,7 @@ pub fn byot(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // Generate return type based on stream flag
     let return_type = if bounds_args.stream {
-        quote! { Result<::std::pin::Pin<Box<dyn ::futures::Stream<Item = Result<R, OpenAIError>> + Send>>, OpenAIError> }
+        quote! { Result<crate::types::stream::StreamResponse<R>, OpenAIError> }
     } else {
         quote! { Result<R, OpenAIError> }
     };
