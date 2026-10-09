@@ -3,15 +3,20 @@ use crate::{
     config::Config,
     error::OpenAIError,
     types::assistants::{
-        AssistantEventStream, CreateRunRequest, ListRunsResponse, ModifyRunRequest, RunObject,
+        CreateRunRequest, ListRunsResponse, ModifyRunRequest, RunObject,
         SubmitToolOutputsRunRequest,
     },
     Client, RequestOptions,
 };
 
+use crate::types::assistants::AssistantEventStream;
+
 /// Represents an execution run on a thread.
 ///
 /// Related guide: [Assistants](https://platform.openai.com/docs/assistants/overview)
+#[deprecated(
+    note = "Assistants API is deprecated and will be removed in August 2026. Use the Responses API."
+)]
 pub struct Runs<'c, C: Config> {
     pub thread_id: String,
     client: &'c Client<C>,
@@ -51,7 +56,7 @@ impl<'c, C: Config> Runs<'c, C> {
         T0 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static + TryFrom<eventsource_stream::Event, Error = OpenAIError>"
+        where_clause = "R: crate::traits::MaybeSend + 'static + TryFrom<eventsource_stream::Event, Error = OpenAIError>"
     )]
     #[allow(unused_mut)]
     pub async fn create_stream(
@@ -69,15 +74,14 @@ impl<'c, C: Config> Runs<'c, C> {
             request.stream = Some(true);
         }
 
-        Ok(self
-            .client
+        self.client
             .post_stream_mapped_raw_events(
                 &format!("/threads/{}/runs", self.thread_id),
                 request,
                 &self.request_options,
                 TryFrom::try_from,
             )
-            .await)
+            .await
     }
 
     /// Retrieves a run.
@@ -143,7 +147,7 @@ impl<'c, C: Config> Runs<'c, C> {
         T1 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static + TryFrom<eventsource_stream::Event, Error = OpenAIError>"
+        where_clause = "R: crate::traits::MaybeSend + 'static + TryFrom<eventsource_stream::Event, Error = OpenAIError>"
     )]
     #[allow(unused_mut)]
     pub async fn submit_tool_outputs_stream(
@@ -162,8 +166,7 @@ impl<'c, C: Config> Runs<'c, C> {
             request.stream = Some(true);
         }
 
-        Ok(self
-            .client
+        self.client
             .post_stream_mapped_raw_events(
                 &format!(
                     "/threads/{}/runs/{run_id}/submit_tool_outputs",
@@ -173,7 +176,7 @@ impl<'c, C: Config> Runs<'c, C> {
                 &self.request_options,
                 TryFrom::try_from,
             )
-            .await)
+            .await
     }
 
     /// Cancels a run that is `in_progress`

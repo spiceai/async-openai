@@ -1,0 +1,4 @@
+interface:
+  display_name: "Upgrade async-openai"
+  short_description: "Safely sync the Spice async-openai fork"
+  default_prompt: "Use $upgrade-async-openai to safely bring upstream changes into the Spice fork."

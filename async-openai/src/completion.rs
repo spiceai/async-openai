@@ -2,11 +2,11 @@ use crate::{
     client::Client,
     config::Config,
     error::OpenAIError,
-    types::completions::{
-        CompletionResponseStream, CreateCompletionRequest, CreateCompletionResponse,
-    },
+    types::completions::{CreateCompletionRequest, CreateCompletionResponse},
     RequestOptions,
 };
+
+use crate::types::completions::CompletionResponseStream;
 
 /// Given a prompt, the model will return one or more predicted completions,
 /// and can also return the probabilities of alternative tokens at each position.
@@ -64,7 +64,7 @@ impl<'c, C: Config> Completions<'c, C> {
         T0 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static"
+        where_clause = "R: crate::traits::MaybeSend + 'static"
     )]
     #[allow(unused_mut)]
     pub async fn create_stream(
@@ -81,9 +81,8 @@ impl<'c, C: Config> Completions<'c, C> {
 
             request.stream = Some(true);
         }
-        Ok(self
-            .client
+        self.client
             .post_stream("/completions", request, &self.request_options)
-            .await)
+            .await
     }
 }

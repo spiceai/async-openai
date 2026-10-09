@@ -106,9 +106,7 @@ pub enum AssistantStreamEvent {
 }
 
 #[cfg(feature = "_api")]
-pub type AssistantEventStream = std::pin::Pin<
-    Box<dyn futures::Stream<Item = Result<AssistantStreamEvent, crate::error::OpenAIError>> + Send>,
->;
+pub type AssistantEventStream = crate::types::stream::StreamResponse<AssistantStreamEvent>;
 
 #[cfg(feature = "_api")]
 impl TryFrom<eventsource_stream::Event> for AssistantStreamEvent {

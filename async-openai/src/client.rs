@@ -1,17 +1,39 @@
-use std::pin::Pin;
+use std::sync::Arc;
+#[cfg(not(target_family = "wasm"))]
+use std::sync::Mutex;
 
 use bytes::Bytes;
-use futures::{stream::StreamExt, Stream};
+use futures::stream::StreamExt;
 use reqwest::{header::HeaderMap, multipart::Form, Response};
-use reqwest_eventsource::{Error as EventSourceError, Event, EventSource, RequestBuilderExt};
 use serde::{de::DeserializeOwned, Serialize};
 
+use crate::error::StreamError;
+#[cfg(feature = "middleware")]
+use crate::executor::TowerExecutor;
 use crate::{
     config::{Config, OpenAIConfig},
-    error::{map_deserialization_error, ApiError, OpenAIError, StreamError, WrappedError},
+    error::{map_deserialization_error, ApiError, OpenAIError, WrappedError},
+    executor::{HttpRequestFactory, ReqwestExecutor, SharedExecutor},
     traits::AsyncTryFrom,
     RequestOptions,
 };
+
+struct RequestParts {
+    request_client: reqwest::Client,
+    method: reqwest::Method,
+    url: String,
+    headers: HeaderMap,
+    query: Vec<(String, String)>,
+}
+
+impl RequestParts {
+    fn build_request_builder(&self) -> reqwest::RequestBuilder {
+        self.request_client
+            .request(self.method.clone(), self.url.clone())
+            .query(&self.query)
+            .headers(self.headers.clone())
+    }
+}
 
 #[cfg(feature = "administration")]
 use crate::admin::Admin;
@@ -24,6 +46,7 @@ use crate::image::Images;
 #[cfg(feature = "moderation")]
 use crate::moderation::Moderations;
 #[cfg(feature = "assistant")]
+#[allow(deprecated)]
 use crate::Assistants;
 #[cfg(feature = "audio")]
 use crate::Audio;
@@ -49,7 +72,10 @@ use crate::Models;
 use crate::Realtime;
 #[cfg(feature = "responses")]
 use crate::Responses;
+#[cfg(feature = "skill")]
+use crate::Skills;
 #[cfg(feature = "assistant")]
+#[allow(deprecated)]
 use crate::Threads;
 #[cfg(feature = "upload")]
 use crate::Uploads;
@@ -58,13 +84,39 @@ use crate::VectorStores;
 #[cfg(feature = "video")]
 use crate::Videos;
 
-#[derive(Debug, Clone, Default)]
-/// Client is a container for config, backoff and http_client
+#[derive(Clone)]
+/// Client is a container for config and HTTP execution
 /// used to make API calls.
 pub struct Client<C: Config> {
-    http_client: reqwest::Client,
+    request_client: reqwest::Client,
+    executor: SharedExecutor,
     config: C,
-    backoff: backoff::ExponentialBackoff,
+}
+
+impl<C> std::fmt::Debug for Client<C>
+where
+    C: Config + std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("request_client", &self.request_client)
+            .field("config", &self.config)
+            .finish()
+    }
+}
+
+impl<C: Config> Default for Client<C>
+where
+    C: Default,
+{
+    fn default() -> Self {
+        let request_client = reqwest::Client::new();
+        Self {
+            executor: Arc::new(ReqwestExecutor::new(request_client.clone())),
+            request_client,
+            config: C::default(),
+        }
+    }
 }
 
 impl Client<OpenAIConfig> {
@@ -75,25 +127,22 @@ impl Client<OpenAIConfig> {
 }
 
 impl<C: Config> Client<C> {
-    /// Create client with a custom HTTP client, OpenAI config, and backoff.
-    pub fn build(
-        http_client: reqwest::Client,
-        config: C,
-        backoff: backoff::ExponentialBackoff,
-    ) -> Self {
+    /// Create client with a custom HTTP client and config.
+    pub fn build(http_client: reqwest::Client, config: C) -> Self {
         Self {
-            http_client,
+            executor: Arc::new(ReqwestExecutor::new(http_client.clone())),
+            request_client: http_client,
             config,
-            backoff,
         }
     }
 
     /// Create client with [OpenAIConfig] or [crate::config::AzureConfig]
     pub fn with_config(config: C) -> Self {
+        let request_client = reqwest::Client::new();
         Self {
-            http_client: reqwest::Client::new(),
+            executor: Arc::new(ReqwestExecutor::new(request_client.clone())),
+            request_client,
             config,
-            backoff: Default::default(),
         }
     }
 
@@ -101,13 +150,40 @@ impl<C: Config> Client<C> {
     ///
     /// [client]: reqwest::Client
     pub fn with_http_client(mut self, http_client: reqwest::Client) -> Self {
-        self.http_client = http_client;
+        self.executor = Arc::new(ReqwestExecutor::new(http_client.clone()));
+        self.request_client = http_client;
         self
     }
 
-    /// Exponential backoff for retrying [rate limited](https://platform.openai.com/docs/guides/rate-limits) requests.
-    pub fn with_backoff(mut self, backoff: backoff::ExponentialBackoff) -> Self {
-        self.backoff = backoff;
+    /// Provide your own tower-compatible service to execute HTTP requests.
+    #[cfg(all(feature = "middleware", not(target_family = "wasm")))]
+    pub fn with_http_service<S>(mut self, service: S) -> Self
+    where
+        S: tower::Service<HttpRequestFactory, Response = Response> + Clone + Send + Sync + 'static,
+        S::Future: Send + 'static,
+        S::Error: Into<OpenAIError> + Send + Sync + 'static,
+    {
+        // This is the public middleware escape hatch. We erase the concrete
+        // tower stack here so the rest of the client does not become generic
+        // over the service type, which would otherwise leak through every API
+        // group and make the crate much harder to use.
+        self.executor = Arc::new(TowerExecutor::new(service));
+        self
+    }
+
+    /// Provide your own tower-compatible service to execute HTTP requests.
+    #[cfg(all(feature = "middleware", target_family = "wasm"))]
+    pub fn with_http_service<S>(mut self, service: S) -> Self
+    where
+        S: tower::Service<HttpRequestFactory, Response = Response> + Clone + 'static,
+        S::Future: 'static,
+        S::Error: Into<OpenAIError> + 'static,
+    {
+        // wasm futures produced by reqwest are not `Send`, so the wasm version
+        // intentionally avoids native thread-safety bounds. Users are still
+        // responsible for choosing tower layers that work in their wasm
+        // runtime.
+        self.executor = Arc::new(TowerExecutor::new(service));
         self
     }
 
@@ -181,12 +257,20 @@ impl<C: Config> Client<C> {
 
     /// To call [Assistants] group related APIs using this client.
     #[cfg(feature = "assistant")]
+    #[deprecated(
+        note = "Assistants API is deprecated and will be removed in August 2026. Use the Responses API."
+    )]
+    #[allow(deprecated)]
     pub fn assistants(&self) -> Assistants<'_, C> {
         Assistants::new(self)
     }
 
     /// To call [Threads] group related APIs using this client.
     #[cfg(feature = "assistant")]
+    #[deprecated(
+        note = "Assistants API is deprecated and will be removed in August 2026. Use the Responses API."
+    )]
+    #[allow(deprecated)]
     pub fn threads(&self) -> Threads<'_, C> {
         Threads::new(self)
     }
@@ -228,6 +312,12 @@ impl<C: Config> Client<C> {
         Containers::new(self)
     }
 
+    /// To call [Skills] group related APIs using this client.
+    #[cfg(feature = "skill")]
+    pub fn skills(&self) -> Skills<'_, C> {
+        Skills::new(self)
+    }
+
     /// To call [Evals] group related APIs using this client.
     #[cfg(feature = "evals")]
     pub fn evals(&self) -> Evals<'_, C> {
@@ -249,33 +339,135 @@ impl<C: Config> Client<C> {
         &self.config
     }
 
-    /// Helper function to build a request builder with common configuration
-    fn build_request_builder(
+    fn build_request_parts(
         &self,
         method: reqwest::Method,
         path: &str,
         request_options: &RequestOptions,
-    ) -> reqwest::RequestBuilder {
-        let mut request_builder = if let Some(path) = request_options.path() {
-            self.http_client
-                .request(method, self.config.url(path.as_str()))
+    ) -> Arc<RequestParts> {
+        let url = if let Some(path) = request_options.path() {
+            self.config.url(path.as_str())
         } else {
-            self.http_client.request(method, self.config.url(path))
+            self.config.url(path)
         };
-
-        request_builder = request_builder
-            .query(&self.config.query())
-            .headers(self.config.headers());
-
-        if let Some(headers) = request_options.headers() {
-            request_builder = request_builder.headers(headers.clone());
+        let mut headers = self.config.headers();
+        if let Some(request_headers) = request_options.headers() {
+            headers.extend(request_headers.clone());
         }
 
-        if !request_options.query().is_empty() {
-            request_builder = request_builder.query(request_options.query());
-        }
+        let mut query = self
+            .config
+            .query()
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect::<Vec<_>>();
+        query.extend_from_slice(request_options.query());
 
-        request_builder
+        Arc::new(RequestParts {
+            request_client: self.request_client.clone(),
+            method,
+            url,
+            headers,
+            query,
+        })
+    }
+
+    fn build_request_factory(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        request_options: &RequestOptions,
+    ) -> HttpRequestFactory {
+        let request_parts = self.build_request_parts(method, path, request_options);
+
+        HttpRequestFactory::new(move || {
+            let request_parts = request_parts.clone();
+
+            async move {
+                let request = request_parts.build_request_builder().build()?;
+                Ok(request)
+            }
+        })
+    }
+
+    fn build_request_factory_with_json<I>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        request: I,
+        request_options: &RequestOptions,
+    ) -> Result<HttpRequestFactory, OpenAIError>
+    where
+        I: Serialize,
+    {
+        // JSON bodies are materialized once so the base BYOT path can keep
+        // accepting borrowed inputs.
+        let request = Bytes::from(serde_json::to_vec(&request).map_err(|error| {
+            OpenAIError::InvalidArgument(format!("failed to serialize request: {error}"))
+        })?);
+        let request_parts = self.build_request_parts(method, path, request_options);
+
+        Ok(HttpRequestFactory::new(move || {
+            let request_parts = request_parts.clone();
+            let request = request.clone();
+
+            async move {
+                let mut http_request = request_parts
+                    .build_request_builder()
+                    .body(request.clone())
+                    .build()?;
+
+                // Set Content-Type by inserting (replacing), not appending. A
+                // Config that forwards caller-supplied headers may already carry
+                // a Content-Type; appending a second one via
+                // RequestBuilder::header sends two Content-Type headers, which
+                // some backends reject as an unsupported content type.
+                http_request.headers_mut().insert(
+                    reqwest::header::CONTENT_TYPE,
+                    reqwest::header::HeaderValue::from_static("application/json"),
+                );
+
+                Ok(http_request)
+            }
+        }))
+    }
+
+    fn build_request_factory_with_form<F>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        form: F,
+        request_options: &RequestOptions,
+    ) -> Result<HttpRequestFactory, OpenAIError>
+    where
+        F: Clone + crate::traits::MaybeSend + 'static,
+        Form: AsyncTryFrom<F, Error = OpenAIError>,
+    {
+        // Multipart is the reason the factory exists.
+        //
+        // `Mutex` is only here to make the captured state `Sync` on native targets.
+        #[cfg(not(target_family = "wasm"))]
+        let form = Arc::new(Mutex::new(form));
+        let request_parts = self.build_request_parts(method, path, request_options);
+
+        Ok(HttpRequestFactory::new(move || {
+            let request_parts = request_parts.clone();
+            let form = form.clone();
+
+            async move {
+                #[cfg(not(target_family = "wasm"))]
+                let form = form
+                    .lock()
+                    .expect("multipart request factory mutex poisoned")
+                    .clone();
+                #[cfg(target_family = "wasm")]
+                let form = form.clone();
+                let form = <Form as AsyncTryFrom<F>>::try_from(form).await?;
+                let request_builder = request_parts.build_request_builder().multipart(form);
+
+                Ok(request_builder.build()?)
+            }
+        }))
     }
 
     /// Make a GET request to {path} and deserialize the response body
@@ -288,13 +480,9 @@ impl<C: Config> Client<C> {
     where
         O: DeserializeOwned,
     {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::GET, path, request_options)
-                .build()?)
-        };
-
-        self.execute(request_maker).await
+        let request_factory =
+            self.build_request_factory(reqwest::Method::GET, path, request_options);
+        self.execute(request_factory).await
     }
 
     /// Make a DELETE request to {path} and deserialize the response body
@@ -307,13 +495,9 @@ impl<C: Config> Client<C> {
     where
         O: DeserializeOwned,
     {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::DELETE, path, request_options)
-                .build()?)
-        };
-
-        self.execute(request_maker).await
+        let request_factory =
+            self.build_request_factory(reqwest::Method::DELETE, path, request_options);
+        self.execute(request_factory).await
     }
 
     /// Make a GET request to {path} and return the response body
@@ -323,13 +507,9 @@ impl<C: Config> Client<C> {
         path: &str,
         request_options: &RequestOptions,
     ) -> Result<(Bytes, HeaderMap), OpenAIError> {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::GET, path, request_options)
-                .build()?)
-        };
-
-        self.execute_raw(request_maker).await
+        let request_factory =
+            self.build_request_factory(reqwest::Method::GET, path, request_options);
+        self.execute_raw(request_factory).await
     }
 
     /// Make a POST request to {path} and return the response body
@@ -343,14 +523,13 @@ impl<C: Config> Client<C> {
     where
         I: Serialize,
     {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::POST, path, request_options)
-                .json(&request)
-                .build()?)
-        };
-
-        self.execute_raw(request_maker).await
+        let request_factory = self.build_request_factory_with_json(
+            reqwest::Method::POST,
+            path,
+            request,
+            request_options,
+        )?;
+        self.execute_raw(request_factory).await
     }
 
     /// Make a POST request to {path} and deserialize the response body
@@ -365,14 +544,13 @@ impl<C: Config> Client<C> {
         I: Serialize,
         O: DeserializeOwned,
     {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::POST, path, request_options)
-                .json(&request)
-                .build()?)
-        };
-
-        self.execute(request_maker).await
+        let request_factory = self.build_request_factory_with_json(
+            reqwest::Method::POST,
+            path,
+            request,
+            request_options,
+        )?;
+        self.execute(request_factory).await
     }
 
     /// POST a form at {path} and return the response body
@@ -384,17 +562,16 @@ impl<C: Config> Client<C> {
         request_options: &RequestOptions,
     ) -> Result<(Bytes, HeaderMap), OpenAIError>
     where
+        F: Clone + crate::traits::MaybeSend + 'static,
         Form: AsyncTryFrom<F, Error = OpenAIError>,
-        F: Clone,
     {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::POST, path, request_options)
-                .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?)
-                .build()?)
-        };
-
-        self.execute_raw(request_maker).await
+        let request_factory = self.build_request_factory_with_form(
+            reqwest::Method::POST,
+            path,
+            form,
+            request_options,
+        )?;
+        self.execute_raw(request_factory).await
     }
 
     /// POST a form at {path} and deserialize the response body
@@ -407,17 +584,16 @@ impl<C: Config> Client<C> {
     ) -> Result<O, OpenAIError>
     where
         O: DeserializeOwned,
+        F: Clone + crate::traits::MaybeSend + 'static,
         Form: AsyncTryFrom<F, Error = OpenAIError>,
-        F: Clone,
     {
-        let request_maker = || async {
-            Ok(self
-                .build_request_builder(reqwest::Method::POST, path, request_options)
-                .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?)
-                .build()?)
-        };
-
-        self.execute(request_maker).await
+        let request_factory = self.build_request_factory_with_form(
+            reqwest::Method::POST,
+            path,
+            form,
+            request_options,
+        )?;
+        self.execute(request_factory).await
     }
 
     #[allow(unused)]
@@ -426,149 +602,88 @@ impl<C: Config> Client<C> {
         path: &str,
         form: F,
         request_options: &RequestOptions,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>, OpenAIError>
+    ) -> Result<crate::types::stream::StreamResponse<O>, OpenAIError>
     where
-        F: Clone,
+        F: Clone + crate::traits::MaybeSend + 'static,
         Form: AsyncTryFrom<F, Error = OpenAIError>,
-        O: DeserializeOwned + std::marker::Send + 'static,
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
     {
-        // Build and execute request manually since multipart::Form is not Clone
-        // and .eventsource() requires cloneability
-        let request_builder = self
-            .build_request_builder(reqwest::Method::POST, path, request_options)
-            .multipart(<Form as AsyncTryFrom<F>>::try_from(form.clone()).await?);
+        let request_factory = self.build_request_factory_with_form(
+            reqwest::Method::POST,
+            path,
+            form,
+            request_options,
+        )?;
 
-        let response = request_builder.send().await.map_err(OpenAIError::Reqwest)?;
-
-        // Check for error status
-        if !response.status().is_success() {
-            return Err(read_response(response).await.unwrap_err());
-        }
-
-        // Convert response body to EventSource stream
-        let stream = response
-            .bytes_stream()
-            .map(|result| result.map_err(std::io::Error::other));
-        let event_stream = eventsource_stream::EventStream::new(stream);
-
-        // Convert EventSource stream to our expected format
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        tokio::spawn(async move {
-            use futures::StreamExt;
-            let mut event_stream = std::pin::pin!(event_stream);
-
-            while let Some(event_result) = event_stream.next().await {
-                match event_result {
-                    Err(e) => {
-                        if let Err(_e) = tx.send(Err(OpenAIError::StreamError(Box::new(
-                            StreamError::EventStream(e.to_string()),
-                        )))) {
-                            break;
-                        }
-                    }
-                    Ok(event) => {
-                        // eventsource_stream::Event is a struct with data field
-                        if event.data == "[DONE]" {
-                            break;
-                        }
-
-                        let response = match serde_json::from_str::<O>(&event.data) {
-                            Err(e) => Err(map_deserialization_error(e, event.data.as_bytes())),
-                            Ok(output) => Ok(output),
-                        };
-
-                        if let Err(_e) = tx.send(response) {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-
-        Ok(Box::pin(
-            tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
-        ))
+        self.execute_stream(request_factory).await
     }
 
-    /// Execute a HTTP request and retry on rate limit
-    ///
-    /// request_maker serves one purpose: to be able to create request again
-    /// to retry API call after getting rate limited. request_maker is async because
-    /// reqwest::multipart::Form is created by async calls to read files for uploads.
-    async fn execute_raw<M, Fut>(&self, request_maker: M) -> Result<(Bytes, HeaderMap), OpenAIError>
-    where
-        M: Fn() -> Fut,
-        Fut: core::future::Future<Output = Result<reqwest::Request, OpenAIError>>,
-    {
-        let client = self.http_client.clone();
-
-        let attempt = || async {
-            let request = request_maker().await.map_err(backoff::Error::Permanent)?;
-            let response = client
-                .execute(request)
-                .await
-                .map_err(OpenAIError::Reqwest)
-                .map_err(backoff::Error::Permanent)?;
-
-            let status = response.status();
-
-            match read_response(response).await {
-                Ok((bytes, headers)) => Ok((bytes, headers)),
-                Err(e) => {
-                    match e {
-                        OpenAIError::ApiError(api_error) => {
-                            if status.is_server_error() {
-                                Err(backoff::Error::Transient {
-                                    err: OpenAIError::ApiError(api_error),
-                                    retry_after: None,
-                                })
-                            } else if status.as_u16() == 429
-                                && api_error.r#type != Some("insufficient_quota".to_string())
-                            {
-                                // Rate limited retry...
-                                crate::rate_limit::log_throttled(&api_error.message);
-                                Err(backoff::Error::Transient {
-                                    err: OpenAIError::ApiError(api_error),
-                                    retry_after: None,
-                                })
-                            } else {
-                                Err(backoff::Error::Permanent(OpenAIError::ApiError(api_error)))
-                            }
-                        }
-                        _ => Err(backoff::Error::Permanent(e)),
-                    }
-                }
-            }
-        };
-
-        // Attributes the backoff a retry is about to sleep for to the model that
-        // was throttled, for the summary that `log_throttled` emits.
-        backoff::future::retry_notify(self.backoff.clone(), attempt, |err, backoff| {
-            if let OpenAIError::ApiError(api_error) = &err {
-                crate::rate_limit::record_backoff(&api_error.message, backoff);
-            }
-        })
-        .await
+    async fn execute_raw(
+        &self,
+        request_factory: HttpRequestFactory,
+    ) -> Result<(Bytes, HeaderMap), OpenAIError> {
+        let response = self.execute_response(request_factory).await?;
+        read_response(response).await
     }
 
-    /// Execute a HTTP request and retry on rate limit
-    ///
-    /// request_maker serves one purpose: to be able to create request again
-    /// to retry API call after getting rate limited. request_maker is async because
-    /// reqwest::multipart::Form is created by async calls to read files for uploads.
-    async fn execute<O, M, Fut>(&self, request_maker: M) -> Result<O, OpenAIError>
+    async fn execute<O>(&self, request_factory: HttpRequestFactory) -> Result<O, OpenAIError>
     where
         O: DeserializeOwned,
-        M: Fn() -> Fut,
-        Fut: core::future::Future<Output = Result<reqwest::Request, OpenAIError>>,
     {
-        let (bytes, _headers) = self.execute_raw(request_maker).await?;
+        let (bytes, _headers) = self.execute_raw(request_factory).await?;
 
         let response: O = serde_json::from_slice(bytes.as_ref())
             .map_err(|e| map_deserialization_error(e, bytes.as_ref()))?;
 
         Ok(response)
+    }
+
+    async fn execute_response(
+        &self,
+        request_factory: HttpRequestFactory,
+    ) -> Result<Response, OpenAIError> {
+        let response = self.executor.execute(request_factory).await?;
+        if !response.status().is_success() {
+            return Err(read_error_response(response).await);
+        }
+        Ok(response)
+    }
+
+    async fn execute_stream<O>(
+        &self,
+        request_factory: HttpRequestFactory,
+    ) -> Result<crate::types::stream::StreamResponse<O>, OpenAIError>
+    where
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+    {
+        let response = self.execute_response(request_factory).await?;
+        Ok(stream(response).await)
+    }
+
+    async fn execute_stream_with_headers<O>(
+        &self,
+        request_factory: HttpRequestFactory,
+    ) -> Result<(crate::types::stream::StreamResponse<O>, HeaderMap), OpenAIError>
+    where
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+    {
+        let response = self.execute_response(request_factory).await?;
+        let headers = response.headers().clone();
+        Ok((stream(response).await, headers))
+    }
+
+    async fn execute_stream_mapped_raw_events<O>(
+        &self,
+        request_factory: HttpRequestFactory,
+        event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError>
+            + crate::traits::MaybeSend
+            + 'static,
+    ) -> Result<crate::types::stream::StreamResponse<O>, OpenAIError>
+    where
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+    {
+        let response = self.execute_response(request_factory).await?;
+        Ok(stream_mapped_raw_events(response, event_mapper).await)
     }
 
     /// Make HTTP POST request to receive SSE
@@ -578,18 +693,41 @@ impl<C: Config> Client<C> {
         path: &str,
         request: I,
         request_options: &RequestOptions,
-    ) -> Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>
+    ) -> Result<crate::types::stream::StreamResponse<O>, OpenAIError>
     where
         I: Serialize,
-        O: DeserializeOwned + std::marker::Send + 'static,
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
     {
-        let request_builder = self
-            .build_request_builder(reqwest::Method::POST, path, request_options)
-            .json(&request);
+        let request_factory = self.build_request_factory_with_json(
+            reqwest::Method::POST,
+            path,
+            request,
+            request_options,
+        )?;
+        // Stream setup is still request/response first. We only create the SSE
+        // stream after the HTTP layer has returned a response object.
+        self.execute_stream(request_factory).await
+    }
 
-        let event_source = request_builder.eventsource().unwrap();
-
-        stream(event_source).await
+    /// Make HTTP POST request to receive SSE, also returning the initial response headers.
+    #[allow(unused)]
+    pub(crate) async fn post_stream_with_headers<I, O>(
+        &self,
+        path: &str,
+        request: I,
+        request_options: &RequestOptions,
+    ) -> Result<(crate::types::stream::StreamResponse<O>, HeaderMap), OpenAIError>
+    where
+        I: Serialize,
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+    {
+        let request_factory = self.build_request_factory_with_json(
+            reqwest::Method::POST,
+            path,
+            request,
+            request_options,
+        )?;
+        self.execute_stream_with_headers(request_factory).await
     }
 
     #[allow(unused)]
@@ -598,19 +736,22 @@ impl<C: Config> Client<C> {
         path: &str,
         request: I,
         request_options: &RequestOptions,
-        event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError> + Send + 'static,
-    ) -> Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>
+        event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError>
+            + crate::traits::MaybeSend
+            + 'static,
+    ) -> Result<crate::types::stream::StreamResponse<O>, OpenAIError>
     where
         I: Serialize,
-        O: DeserializeOwned + std::marker::Send + 'static,
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
     {
-        let request_builder = self
-            .build_request_builder(reqwest::Method::POST, path, request_options)
-            .json(&request);
-
-        let event_source = request_builder.eventsource().unwrap();
-
-        stream_mapped_raw_events(event_source, event_mapper).await
+        let request_factory = self.build_request_factory_with_json(
+            reqwest::Method::POST,
+            path,
+            request,
+            request_options,
+        )?;
+        self.execute_stream_mapped_raw_events(request_factory, event_mapper)
+            .await
     }
 
     /// Make HTTP GET request to receive SSE
@@ -619,166 +760,525 @@ impl<C: Config> Client<C> {
         &self,
         path: &str,
         request_options: &RequestOptions,
-    ) -> Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>
+    ) -> Result<crate::types::stream::StreamResponse<O>, OpenAIError>
     where
-        O: DeserializeOwned + std::marker::Send + 'static,
+        O: DeserializeOwned + crate::traits::MaybeSend + 'static,
     {
-        let request_builder =
-            self.build_request_builder(reqwest::Method::GET, path, request_options);
-
-        let event_source = request_builder.eventsource().unwrap();
-
-        stream(event_source).await
+        let request_factory =
+            self.build_request_factory(reqwest::Method::GET, path, request_options);
+        self.execute_stream(request_factory).await
     }
 }
 
 async fn read_response(response: Response) -> Result<(Bytes, HeaderMap), OpenAIError> {
-    let status = response.status();
     let headers = response.headers().clone();
     let bytes = response.bytes().await.map_err(OpenAIError::Reqwest)?;
+    Ok((bytes, headers))
+}
+
+async fn read_error_response(response: Response) -> OpenAIError {
+    let status = response.status();
+    let bytes = match response.bytes().await {
+        Ok(b) => b,
+        Err(e) => return OpenAIError::Reqwest(e),
+    };
 
     if status.is_server_error() {
         // OpenAI does not guarantee server errors are returned as JSON so we cannot deserialize them.
         let message: String = String::from_utf8_lossy(&bytes).into_owned();
         tracing::warn!("Server error: {status} - {message}");
-        return Err(OpenAIError::ApiError(ApiError {
+        return OpenAIError::ApiError(ApiError {
             message,
             r#type: None,
             param: None,
             code: None,
-        }));
+        });
     }
 
-    // Deserialize response body from either error object or actual response object
-    if !status.is_success() {
-        let wrapped_error: WrappedError = serde_json::from_slice(bytes.as_ref())
-            .map_err(|e| map_deserialization_error(e, bytes.as_ref()))?;
-
-        return Err(OpenAIError::ApiError(wrapped_error.error));
-    }
-
-    Ok((bytes, headers))
-}
-
-async fn map_stream_error(value: EventSourceError) -> OpenAIError {
-    match value {
-        EventSourceError::InvalidStatusCode(status_code, response) => {
-            read_response(response).await.expect_err(&format!(
-                "Unreachable because read_response returns err when status_code {status_code} is invalid"
-            ))
-        }
-        _ => OpenAIError::StreamError(Box::new(StreamError::ReqwestEventSource(value))),
+    // Deserialize response body from the error object
+    match serde_json::from_slice::<WrappedError>(bytes.as_ref()) {
+        Ok(wrapped) => OpenAIError::ApiError(wrapped.error),
+        Err(e) => map_deserialization_error(e, bytes.as_ref()),
     }
 }
 
 /// Request which responds with SSE.
 /// [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
-pub(crate) async fn stream<O>(
-    mut event_source: EventSource,
-) -> Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>
+pub(crate) async fn stream<O>(response: Response) -> crate::types::stream::StreamResponse<O>
+where
+    O: DeserializeOwned + crate::traits::MaybeSend + 'static,
+{
+    stream_mapped_raw_events(response, |event| {
+        serde_json::from_str::<O>(&event.data)
+            .map_err(|error| map_deserialization_error(error, event.data.as_bytes()))
+    })
+    .await
+}
+
+#[cfg(target_family = "wasm")]
+pub(crate) async fn stream_mapped_raw_events<O>(
+    response: Response,
+    event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError> + 'static,
+) -> crate::types::stream::StreamResponse<O>
+where
+    O: DeserializeOwned + 'static,
+{
+    let byte_stream = response
+        .bytes_stream()
+        .map(|result| result.map_err(std::io::Error::other));
+    let event_stream = Box::pin(eventsource_stream::EventStream::new(byte_stream));
+
+    Box::pin(futures::stream::unfold(
+        (event_stream, event_mapper),
+        |(mut event_stream, event_mapper)| async move {
+            loop {
+                let event = match event_stream.next().await {
+                    Some(Ok(event)) => event,
+                    Some(Err(error)) => {
+                        return Some((
+                            Err(OpenAIError::StreamError(Box::new(
+                                StreamError::EventStream(error.to_string()),
+                            ))),
+                            (event_stream, event_mapper),
+                        ));
+                    }
+                    None => return None,
+                };
+
+                if event.data == "[DONE]" {
+                    return None;
+                }
+
+                if event.event == "keepalive" {
+                    continue;
+                }
+
+                let response = event_mapper(event);
+                return Some((response, (event_stream, event_mapper)));
+            }
+        },
+    ))
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn stream_mapped_raw_events<O>(
+    response: Response,
+    event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError> + Send + 'static,
+) -> crate::types::stream::StreamResponse<O>
 where
     O: DeserializeOwned + std::marker::Send + 'static,
 {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
     tokio::spawn(async move {
-        while let Some(ev) = event_source.next().await {
-            match ev {
+        let byte_stream = response
+            .bytes_stream()
+            .map(|r| r.map_err(std::io::Error::other));
+        let mut event_stream = std::pin::pin!(eventsource_stream::EventStream::new(byte_stream));
+
+        // Also observe the consumer dropping the stream: relying on
+        // `tx.send(..).is_err()` alone would keep this task - and the upstream
+        // response it holds - alive until the next event arrives, which never
+        // happens when upstream is open but idle.
+        while let Some(ev) = tokio::select! {
+            biased;
+            _ = tx.closed() => None,
+            ev = event_stream.next() => ev,
+        } {
+            let event = match ev {
+                Ok(e) => e,
                 Err(e) => {
-                    // Handle StreamEnded gracefully - it's a normal end of stream, not an error
-                    // https://github.com/64bit/async-openai/issues/456
-                    match &e {
-                        EventSourceError::StreamEnded => {
-                            break;
-                        }
-                        _ => {
-                            if let Err(_e) = tx.send(Err(map_stream_error(e).await)) {
-                                // rx dropped
-                                break;
-                            }
-                        }
-                    }
+                    let _ = tx.send(Err(OpenAIError::StreamError(Box::new(
+                        StreamError::EventStream(e.to_string()),
+                    ))));
+                    break;
                 }
-                Ok(event) => match event {
-                    Event::Message(message) => {
-                        if message.data == "[DONE]" {
-                            break;
-                        }
+            };
+            if event.data == "[DONE]" {
+                break;
+            }
 
-                        let response = match serde_json::from_str::<O>(&message.data) {
-                            Err(e) => Err(map_deserialization_error(e, message.data.as_bytes())),
-                            Ok(output) => Ok(output),
-                        };
+            if event.event == "keepalive" {
+                continue;
+            }
 
-                        if let Err(_e) = tx.send(response) {
-                            // rx dropped
-                            break;
-                        }
-                    }
-                    Event::Open => continue,
-                },
+            let response = event_mapper(event);
+
+            if tx.send(response).is_err() {
+                break;
             }
         }
-
-        event_source.close();
     });
 
     Box::pin(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
 }
 
-pub(crate) async fn stream_mapped_raw_events<O>(
-    mut event_source: EventSource,
-    event_mapper: impl Fn(eventsource_stream::Event) -> Result<O, OpenAIError> + Send + 'static,
-) -> Pin<Box<dyn Stream<Item = Result<O, OpenAIError>> + Send>>
-where
-    O: DeserializeOwned + std::marker::Send + 'static,
-{
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+#[cfg(all(test, feature = "middleware", not(target_family = "wasm")))]
+mod tests {
+    use std::sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    };
 
-    tokio::spawn(async move {
-        while let Some(ev) = event_source.next().await {
-            match ev {
-                Err(e) => {
-                    // Handle StreamEnded gracefully - it's a normal end of stream, not an error
-                    // https://github.com/64bit/async-openai/issues/456
-                    match &e {
-                        EventSourceError::StreamEnded => {
-                            break;
-                        }
-                        _ => {
-                            if let Err(_e) = tx.send(Err(map_stream_error(e).await)) {
-                                // rx dropped
-                                break;
-                            }
-                        }
+    use futures::StreamExt;
+    use http::Response as HttpResponse;
+    use serde_json::json;
+    use tower::{service_fn, ServiceBuilder};
+
+    use super::Client;
+    use crate::{
+        config::OpenAIConfig, error::OpenAIError, executor::HttpRequestFactory,
+        retry::SimpleRetryPolicy, traits::AsyncTryFrom, RequestOptions,
+    };
+
+    #[tokio::test]
+    async fn unary_requests_dispatch_through_middleware_service() {
+        let request_count = Arc::new(AtomicUsize::new(0));
+        let service = {
+            let request_count = request_count.clone();
+            ServiceBuilder::new()
+                .concurrency_limit(1)
+                .service(service_fn(move |factory: HttpRequestFactory| {
+                    let request_count = request_count.clone();
+                    async move {
+                        let request = factory.build().await?;
+                        assert_eq!(request.url().path(), "/models");
+                        request_count.fetch_add(1, Ordering::SeqCst);
+                        Ok::<reqwest::Response, OpenAIError>(
+                            HttpResponse::builder()
+                                .status(200)
+                                .header("content-type", "application/json")
+                                .body(reqwest::Body::from(
+                                    "{\"object\":\"list\",\"data\":[{\"id\":\"model\"}]}",
+                                ))
+                                .unwrap()
+                                .into(),
+                        )
                     }
-                }
-                Ok(event) => match event {
-                    Event::Message(message) => {
-                        let mut done = false;
+                }))
+        };
 
-                        if message.data == "[DONE]" {
-                            done = true;
-                        }
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
 
-                        let response = event_mapper(message);
+        let value: serde_json::Value = client.get("/models", &RequestOptions::new()).await.unwrap();
 
-                        if let Err(_e) = tx.send(response) {
-                            // rx dropped
-                            break;
-                        }
+        assert_eq!(value["object"], "list");
+        assert_eq!(request_count.load(Ordering::SeqCst), 1);
+    }
 
-                        if done {
-                            break;
-                        }
+    #[tokio::test]
+    async fn stream_requests_open_through_middleware_service() {
+        let request_count = Arc::new(AtomicUsize::new(0));
+        let service = {
+            let request_count = request_count.clone();
+            ServiceBuilder::new()
+                .concurrency_limit(1)
+                .service(service_fn(move |factory: HttpRequestFactory| {
+                    let request_count = request_count.clone();
+                    async move {
+                        let request = factory.build().await?;
+                        assert_eq!(request.url().path(), "/responses");
+                        request_count.fetch_add(1, Ordering::SeqCst);
+                        Ok::<reqwest::Response, OpenAIError>(
+                            HttpResponse::builder()
+                                .status(200)
+                                .header("content-type", "text/event-stream")
+                                .body(reqwest::Body::from(
+                                    "data: {\"ok\":true}\n\ndata: [DONE]\n\n",
+                                ))
+                                .unwrap()
+                                .into(),
+                        )
                     }
-                    Event::Open => continue,
+                }))
+        };
+
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
+
+        let mut stream = client
+            .post_stream::<_, serde_json::Value>(
+                "/responses",
+                json!({ "stream": true }),
+                &RequestOptions::new(),
+            )
+            .await
+            .unwrap();
+
+        let first = stream.next().await.unwrap().unwrap();
+
+        assert_eq!(first, json!({ "ok": true }));
+        assert_eq!(request_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn middleware_retry_policy_retries_429_responses() {
+        let request_count = Arc::new(AtomicUsize::new(0));
+        let service = {
+            let request_count = request_count.clone();
+            ServiceBuilder::new()
+                .retry(SimpleRetryPolicy::default())
+                .service(service_fn(move |factory: HttpRequestFactory| {
+                    let request_count = request_count.clone();
+                    async move {
+                        let request = factory.build().await?;
+                        assert_eq!(request.url().path(), "/models");
+                        let attempt = request_count.fetch_add(1, Ordering::SeqCst);
+
+                        let response = if attempt == 0 {
+                            HttpResponse::builder()
+                                .status(429)
+                                .header("content-type", "application/json")
+                                .body(reqwest::Body::from(
+                                    r#"{"error":{"message":"retry me","type":"rate_limit_error","param":null,"code":null}}"#,
+                                ))
+                                .unwrap()
+                        } else {
+                            HttpResponse::builder()
+                                .status(200)
+                                .header("content-type", "application/json")
+                                .body(reqwest::Body::from(
+                                    r#"{"object":"list","data":[{"id":"retry-model"}]}"#,
+                                ))
+                                .unwrap()
+                        };
+
+                        Ok::<reqwest::Response, OpenAIError>(response.into())
+                    }
+                }))
+        };
+
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
+
+        let value: serde_json::Value = client.get("/models", &RequestOptions::new()).await.unwrap();
+
+        assert_eq!(value["data"][0]["id"], "retry-model");
+        assert_eq!(request_count.load(Ordering::SeqCst), 2);
+    }
+
+    #[derive(Clone)]
+    struct RetryableMultipartInput {
+        conversions: Arc<AtomicUsize>,
+    }
+
+    impl AsyncTryFrom<RetryableMultipartInput> for reqwest::multipart::Form {
+        type Error = OpenAIError;
+
+        async fn try_from(value: RetryableMultipartInput) -> Result<Self, Self::Error> {
+            value.conversions.fetch_add(1, Ordering::SeqCst);
+            Ok(reqwest::multipart::Form::new().text("field", "value"))
+        }
+    }
+
+    #[tokio::test]
+    async fn middleware_retry_policy_rebuilds_multipart_form_per_attempt() {
+        let request_count = Arc::new(AtomicUsize::new(0));
+        let conversion_count = Arc::new(AtomicUsize::new(0));
+
+        let service = {
+            let request_count = request_count.clone();
+            ServiceBuilder::new()
+                .retry(SimpleRetryPolicy::default())
+                .service(service_fn(move |factory: HttpRequestFactory| {
+                    let request_count = request_count.clone();
+                    async move {
+                        let request = factory.build().await?;
+                        assert_eq!(request.method(), reqwest::Method::POST);
+                        assert_eq!(request.url().path(), "/files");
+                        let attempt = request_count.fetch_add(1, Ordering::SeqCst);
+
+                        let response = if attempt == 0 {
+                            HttpResponse::builder()
+                                .status(429)
+                                .header("content-type", "application/json")
+                                .body(reqwest::Body::from(
+                                    r#"{"error":{"message":"retry me","type":"rate_limit_error","param":null,"code":null}}"#,
+                                ))
+                                .unwrap()
+                        } else {
+                            HttpResponse::builder()
+                                .status(200)
+                                .header("content-type", "application/json")
+                                .body(reqwest::Body::from(r#"{"ok":true}"#))
+                                .unwrap()
+                        };
+
+                        Ok::<reqwest::Response, OpenAIError>(response.into())
+                    }
+                }))
+        };
+
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
+
+        let value: serde_json::Value = client
+            .post_form(
+                "/files",
+                RetryableMultipartInput {
+                    conversions: conversion_count.clone(),
                 },
+                &RequestOptions::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(value, json!({ "ok": true }));
+        assert_eq!(request_count.load(Ordering::SeqCst), 2);
+        assert_eq!(conversion_count.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn dropping_stream_releases_idle_upstream_response() {
+        struct DropGuard(Arc<AtomicBool>);
+
+        impl Drop for DropGuard {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
             }
         }
 
-        event_source.close();
-    });
+        let upstream_dropped = Arc::new(AtomicBool::new(false));
 
-    Box::pin(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
+        let dropped = upstream_dropped.clone();
+        let service = ServiceBuilder::new()
+            .concurrency_limit(1)
+            .service(service_fn(move |factory: HttpRequestFactory| {
+                let guard = DropGuard(dropped.clone());
+                async move {
+                    factory.build().await?;
+
+                    // One event, then an upstream which stays open but never sends
+                    // again - no further events, no `[DONE]`, no error.
+                    let body = futures::stream::once(async {
+                        Ok::<_, std::io::Error>(bytes::Bytes::from_static(
+                            b"data: {\"ok\":true}\n\n",
+                        ))
+                    })
+                    .chain(futures::stream::unfold(
+                        guard,
+                        |guard| async move {
+                            futures::future::pending::<()>().await;
+                            Some((Ok(bytes::Bytes::new()), guard))
+                        },
+                    ));
+
+                    Ok::<reqwest::Response, OpenAIError>(
+                        HttpResponse::builder()
+                            .status(200)
+                            .header("content-type", "text/event-stream")
+                            .body(reqwest::Body::wrap_stream(body))
+                            .unwrap()
+                            .into(),
+                    )
+                }
+            }));
+
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
+
+        let mut stream = client
+            .post_stream::<_, serde_json::Value>(
+                "/responses",
+                json!({ "stream": true }),
+                &RequestOptions::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(stream.next().await.unwrap().unwrap(), json!({ "ok": true }));
+        assert!(!upstream_dropped.load(Ordering::SeqCst));
+
+        drop(stream);
+
+        // The reader task should observe the dropped consumer and release the
+        // response without waiting for another event from upstream.
+        for _ in 0..100 {
+            if upstream_dropped.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+
+        assert!(
+            upstream_dropped.load(Ordering::SeqCst),
+            "reader task leaked the upstream response after the stream was dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn json_post_sends_single_content_type_when_caller_supplies_one() {
+        // Regression: a Config (or per-request options) that forwards a
+        // caller's Content-Type must not lead to two Content-Type headers on
+        // the outgoing request. Codex's ChatGPT backend rejects a doubled
+        // Content-Type with `{"detail":"Unsupported content type"}`.
+        let content_type_count = Arc::new(AtomicUsize::new(usize::MAX));
+        let service = {
+            let content_type_count = content_type_count.clone();
+            ServiceBuilder::new().service(service_fn(move |factory: HttpRequestFactory| {
+                let content_type_count = content_type_count.clone();
+                async move {
+                    let request = factory.build().await?;
+                    let count = request
+                        .headers()
+                        .get_all(reqwest::header::CONTENT_TYPE)
+                        .iter()
+                        .count();
+                    content_type_count.store(count, Ordering::SeqCst);
+                    Ok::<reqwest::Response, OpenAIError>(
+                        HttpResponse::builder()
+                            .status(200)
+                            .header("content-type", "application/json")
+                            .body(reqwest::Body::from("{\"ok\":true}"))
+                            .unwrap()
+                            .into(),
+                    )
+                }
+            }))
+        };
+
+        let client = Client::with_config(
+            OpenAIConfig::new()
+                .with_api_base("http://example.test")
+                .with_api_key("test-key"),
+        )
+        .with_http_service(service);
+
+        let mut request_options = RequestOptions::new();
+        request_options
+            .with_header(reqwest::header::CONTENT_TYPE, "application/json")
+            .unwrap();
+
+        let _: serde_json::Value = client
+            .post("/responses", json!({ "stream": false }), &request_options)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            content_type_count.load(Ordering::SeqCst),
+            1,
+            "outgoing request must carry exactly one Content-Type header"
+        );
+    }
 }

@@ -1,9 +1,11 @@
 use crate::{
     config::Config,
     error::OpenAIError,
-    types::audio::{CreateSpeechRequest, CreateSpeechResponse, SpeechResponseStream},
+    types::audio::{CreateSpeechRequest, CreateSpeechResponse},
     Client, RequestOptions,
 };
+
+use crate::types::audio::SpeechResponseStream;
 
 pub struct Speech<'c, C: Config> {
     client: &'c Client<C>,
@@ -36,7 +38,7 @@ impl<'c, C: Config> Speech<'c, C> {
         T0 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static"
+        where_clause = "R: crate::traits::MaybeSend + 'static"
     )]
     #[allow(unused_mut)]
     pub async fn create_stream(
@@ -56,9 +58,8 @@ impl<'c, C: Config> Speech<'c, C> {
 
             request.stream_format = Some(StreamFormat::SSE);
         }
-        Ok(self
-            .client
+        self.client
             .post_stream("/audio/speech", request, &self.request_options)
-            .await)
+            .await
     }
 }

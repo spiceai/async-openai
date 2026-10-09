@@ -3,10 +3,12 @@ use crate::{
     error::OpenAIError,
     types::responses::{
         CompactResource, CompactResponseRequest, CreateResponse, DeleteResponse, Response,
-        ResponseItemList, ResponseStream, TokenCountsBody, TokenCountsResource,
+        ResponseItemList, TokenCountsBody, TokenCountsResource,
     },
     Client, RequestOptions,
 };
+
+use crate::types::responses::ResponseStream;
 
 pub struct Responses<'c, C: Config> {
     client: &'c Client<C>,
@@ -41,6 +43,22 @@ impl<'c, C: Config> Responses<'c, C> {
             .await
     }
 
+    /// Like [`Self::create`], but also returns the backend's raw response headers
+    /// (e.g. `x-codex-turn-state`, which a Codex-compatible caller must replay on
+    /// the next request in the same turn).
+    pub async fn create_with_headers(
+        &self,
+        request: CreateResponse,
+    ) -> Result<(Response, reqwest::header::HeaderMap), OpenAIError> {
+        let (bytes, headers) = self
+            .client
+            .post_raw("/responses", request, &self.request_options)
+            .await?;
+        let response: Response = serde_json::from_slice(bytes.as_ref())
+            .map_err(|e| crate::error::map_deserialization_error(e, bytes.as_ref()))?;
+        Ok((response, headers))
+    }
+
     /// Creates a model response for the given input with streaming.
     ///
     /// Response events will be sent as server-sent events as they become available,
@@ -48,7 +66,7 @@ impl<'c, C: Config> Responses<'c, C> {
         T0 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static"
+        where_clause = "R: crate::traits::MaybeSend + 'static"
     )]
     #[allow(unused_mut)]
     pub async fn create_stream(
@@ -64,10 +82,27 @@ impl<'c, C: Config> Responses<'c, C> {
             }
             request.stream = Some(true);
         }
-        Ok(self
-            .client
+        self.client
             .post_stream("/responses", request, &self.request_options)
-            .await)
+            .await
+    }
+
+    /// Like [`Self::create_stream`], but also returns the backend's raw response
+    /// headers (e.g. `x-codex-turn-state`, which a Codex-compatible caller must
+    /// replay on the next request in the same turn).
+    pub async fn create_stream_with_headers(
+        &self,
+        mut request: CreateResponse,
+    ) -> Result<(ResponseStream, reqwest::header::HeaderMap), OpenAIError> {
+        if matches!(request.stream, Some(false)) {
+            return Err(OpenAIError::InvalidArgument(
+                "When stream is false, use Responses::create_with_headers".into(),
+            ));
+        }
+        request.stream = Some(true);
+        self.client
+            .post_stream_with_headers("/responses", request, &self.request_options)
+            .await
     }
 
     /// Retrieves a model response with the given ID.
@@ -88,16 +123,15 @@ impl<'c, C: Config> Responses<'c, C> {
         T0 = std::fmt::Display,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static"
+        where_clause = "R: crate::traits::MaybeSend + 'static"
     )]
     pub async fn retrieve_stream(&self, response_id: &str) -> Result<ResponseStream, OpenAIError> {
         let mut request_options = self.request_options.clone();
         request_options.with_query(&[("stream", "true")])?;
 
-        Ok(self
-            .client
+        self.client
             .get_stream(&format!("/responses/{}", response_id), &request_options)
-            .await)
+            .await
     }
 
     /// Deletes a model response with the given ID.

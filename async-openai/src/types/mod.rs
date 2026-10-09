@@ -35,6 +35,7 @@ pub mod images;
     feature = "image-types",
     feature = "video-types",
     feature = "container-types",
+    feature = "skill-types",
     feature = "chat-completion-types",
     feature = "realtime-types"
 ))]
@@ -76,6 +77,10 @@ pub mod responses;
     feature = "image-types"
 ))]
 mod shared;
+#[cfg(feature = "skill-types")]
+pub mod skills;
+#[cfg(feature = "_api")]
+pub mod stream;
 #[cfg(feature = "upload-types")]
 pub mod uploads;
 #[cfg(feature = "vectorstore-types")]
@@ -93,6 +98,7 @@ pub mod webhooks;
     feature = "image-types",
     feature = "video-types",
     feature = "container-types",
+    feature = "skill-types",
     feature = "chat-completion-types",
     feature = "realtime-types"
 ))]

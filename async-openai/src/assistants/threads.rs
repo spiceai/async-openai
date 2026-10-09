@@ -2,15 +2,20 @@ use crate::{
     config::Config,
     error::OpenAIError,
     types::assistants::{
-        AssistantEventStream, CreateThreadAndRunRequest, CreateThreadRequest, DeleteThreadResponse,
-        ModifyThreadRequest, RunObject, ThreadObject,
+        CreateThreadAndRunRequest, CreateThreadRequest, DeleteThreadResponse, ModifyThreadRequest,
+        RunObject, ThreadObject,
     },
     Client, Messages, RequestOptions, Runs,
 };
 
+use crate::types::assistants::AssistantEventStream;
+
 /// Create threads that assistants can interact with.
 ///
 /// Related guide: [Assistants](https://platform.openai.com/docs/assistants/overview)
+#[deprecated(
+    note = "Assistants API is deprecated and will be removed in August 2026. Use the Responses API."
+)]
 pub struct Threads<'c, C: Config> {
     client: &'c Client<C>,
     pub(crate) request_options: RequestOptions,
@@ -52,7 +57,7 @@ impl<'c, C: Config> Threads<'c, C> {
         T0 = serde::Serialize,
         R = serde::de::DeserializeOwned,
         stream = "true",
-        where_clause = "R: std::marker::Send + 'static + TryFrom<eventsource_stream::Event, Error = OpenAIError>"
+        where_clause = "R: crate::traits::MaybeSend + 'static + TryFrom<eventsource_stream::Event, Error = OpenAIError>"
     )]
     #[allow(unused_mut)]
     pub async fn create_and_run_stream(
@@ -69,15 +74,14 @@ impl<'c, C: Config> Threads<'c, C> {
 
             request.stream = Some(true);
         }
-        Ok(self
-            .client
+        self.client
             .post_stream_mapped_raw_events(
                 "/threads/runs",
                 request,
                 &self.request_options,
                 TryFrom::try_from,
             )
-            .await)
+            .await
     }
 
     /// Create a thread.

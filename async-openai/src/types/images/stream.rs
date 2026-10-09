@@ -103,14 +103,10 @@ pub enum ImageEditStreamEvent {
 }
 
 #[cfg(feature = "_api")]
-pub type ImageEditStream = std::pin::Pin<
-    Box<dyn futures::Stream<Item = Result<ImageEditStreamEvent, crate::error::OpenAIError>> + Send>,
->;
+pub type ImageEditStream = crate::types::stream::StreamResponse<ImageEditStreamEvent>;
 
 #[cfg(feature = "_api")]
-pub type ImageGenStream = std::pin::Pin<
-    Box<dyn futures::Stream<Item = Result<ImageGenStreamEvent, crate::error::OpenAIError>> + Send>,
->;
+pub type ImageGenStream = crate::types::stream::StreamResponse<ImageGenStreamEvent>;
 
 #[cfg(feature = "_api")]
 macro_rules! impl_event_type {

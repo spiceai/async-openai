@@ -537,9 +537,7 @@ pub struct ResponseErrorEvent {
 
 /// Stream of response events
 #[cfg(feature = "_api")]
-pub type ResponseStream = std::pin::Pin<
-    Box<dyn futures::Stream<Item = Result<ResponseStreamEvent, crate::error::OpenAIError>> + Send>,
->;
+pub type ResponseStream = crate::types::stream::StreamResponse<ResponseStreamEvent>;
 
 // Implement EventType trait for all event types in this file
 #[cfg(feature = "_api")]
