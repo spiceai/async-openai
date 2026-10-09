@@ -117,8 +117,7 @@ fn codex_bodies_deserialize_and_roundtrip_without_loss() {
                         let de = &mut serde_json::Deserializer::from_str(&item_str);
                         match serde_path_to_error::deserialize::<_, Item>(de) {
                             Ok(typed) => {
-                                let round =
-                                    serde_json::to_value(&typed).expect("reserialize item");
+                                let round = serde_json::to_value(&typed).expect("reserialize item");
                                 let mut d = Vec::new();
                                 diff(&format!("input[{i}]({ty})"), item, &round, &mut d);
                                 for line in d {

@@ -18,6 +18,8 @@ default = ["rustls"]
 rustls = ["dep:reqwest", "reqwest/rustls"]
 # Enable rustls (reqwest 0.13 uses rustls-platform-verifier; webpki-roots is no longer a separate reqwest feature)
 rustls-webpki-roots = ["dep:reqwest", "reqwest/rustls"]
+# Enable rustls without a crypto provider; consumer must install one (e.g. ring or aws-lc-rs)
+rustls-no-provider = ["dep:reqwest", "reqwest/rustls-no-provider"]
 # Enable native-tls for TLS support
 native-tls = ["dep:reqwest", "reqwest/native-tls"]
 # Remove dependency on OpenSSL
