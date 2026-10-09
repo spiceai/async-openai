@@ -773,15 +773,26 @@ pub struct Prompt {
     pub variables: Option<ResponsePromptVariables>,
 }
 
-/// The processing tier a request asks for, and the tier a response reports it was served on.
-///
-/// The set of tiers grows on the server side, and a response reports whichever tier served it,
-/// so a tier this type does not name deserializes to [`ServiceTier::Other`] and serializes back
-/// unchanged.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+/// The processing tier a request asks for.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTier {
     #[default]
+    Auto,
+    Default,
+    Flex,
+    Scale,
+    Priority,
+}
+
+/// The processing tier a response reports it was served on.
+///
+/// The server adds tiers on its side and reports whichever one served the request, so a tier
+/// this type does not name deserializes to [`ServiceTierResponse::Other`] and serializes back
+/// unchanged. Requests keep the closed [`ServiceTier`].
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ServiceTierResponse {
     Auto,
     Default,
     Flex,
@@ -792,14 +803,14 @@ pub enum ServiceTier {
     Other(String),
 }
 
-impl ServiceTier {
+impl ServiceTierResponse {
     /// The wire names of the named variants.
     const NAMED: [&'static str; 5] = ["auto", "default", "flex", "scale", "priority"];
 }
 
 /// Hand-written because the derive ignores `#[serde(untagged)]` on a variant and would describe
-/// [`ServiceTier::Other`] as an object. The schema is any string, listing the named tiers.
-impl utoipa::PartialSchema for ServiceTier {
+/// [`ServiceTierResponse::Other`] as an object. The schema is any string, listing the named tiers.
+impl utoipa::PartialSchema for ServiceTierResponse {
     fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
         use utoipa::openapi::schema::{AnyOfBuilder, ObjectBuilder, Type};
 
@@ -814,7 +825,7 @@ impl utoipa::PartialSchema for ServiceTier {
     }
 }
 
-impl ToSchema for ServiceTier {}
+impl ToSchema for ServiceTierResponse {}
 
 /// Truncation strategies.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
@@ -2521,7 +2532,7 @@ pub struct Response {
     ///
     /// When the `service_tier` parameter is set, the response body will include the `service_tier` value based on the processing mode actually used to serve the request. This response value may be different from the value set in the parameter.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub service_tier: Option<ServiceTier>,
+    pub service_tier: Option<ServiceTierResponse>,
 
     /// The status of the response generation.
     /// One of `completed`, `failed`, `in_progress`, `cancelled`, `queued`, or `incomplete`.
