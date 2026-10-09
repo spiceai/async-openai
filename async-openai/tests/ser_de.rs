@@ -61,6 +61,40 @@ fn stream_options_none_fields_not_serialized() {
     assert_eq!(stream_options, deserialized);
 }
 
+#[test]
+fn allowed_tools_tool_choice_round_trips_in_the_chat_completions_shape() {
+    use async_openai::types::chat::{ChatCompletionToolChoiceOption, ToolChoiceAllowedMode};
+
+    // The Chat Completions API takes one `allowed_tools` object, not a list of them.
+    let wire = serde_json::json!({
+        "type": "allowed_tools",
+        "allowed_tools": {
+            "mode": "required",
+            "tools": [{"type": "function", "function": {"name": "get_weather"}}]
+        }
+    });
+
+    let choice: ChatCompletionToolChoiceOption = serde_json::from_value(wire.clone()).unwrap();
+    let ChatCompletionToolChoiceOption::AllowedTools(allowed) = &choice else {
+        panic!("expected an allowed_tools choice, got {choice:?}");
+    };
+    assert_eq!(allowed.allowed_tools.mode, ToolChoiceAllowedMode::Required);
+    assert_eq!(
+        allowed.allowed_tools.tools,
+        vec![serde_json::json!({"type": "function", "function": {"name": "get_weather"}})]
+    );
+    assert_eq!(serde_json::to_value(&choice).unwrap(), wire);
+
+    let list = serde_json::json!({
+        "type": "allowed_tools",
+        "allowed_tools": [{"mode": "required", "tools": []}]
+    });
+    assert!(
+        serde_json::from_value::<ChatCompletionToolChoiceOption>(list).is_err(),
+        "a list of allowed_tools entries is not the Chat Completions shape"
+    );
+}
+
 mod service_tier {
     use async_openai::types::chat::{
         CreateChatCompletionRequest, CreateChatCompletionResponse, ServiceTier, ServiceTierResponse,

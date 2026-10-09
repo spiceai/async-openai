@@ -578,9 +578,11 @@ pub enum ChatCompletionToolChoiceOption {
     Mode(ToolChoiceOptions),
 }
 
-#[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
+/// `{"type": "allowed_tools", "allowed_tools": {"mode": ..., "tools": [...]}}`: one mode over
+/// one tool list, as the Chat Completions API defines it.
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 pub struct ChatCompletionAllowedToolsChoice {
-    pub allowed_tools: Vec<ChatCompletionAllowedTools>,
+    pub allowed_tools: ChatCompletionAllowedTools,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
