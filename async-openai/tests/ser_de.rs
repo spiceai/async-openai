@@ -98,8 +98,44 @@ fn function_call_stream_none_fields_not_serialized() {
     assert_eq!(fcs, deserialized);
 }
 
+#[test]
+fn allowed_tools_tool_choice_round_trips_in_the_chat_completions_shape() {
+    use async_openai::types::chat::{ChatCompletionToolChoiceOption, ToolChoiceAllowedMode};
+
+    // The Chat Completions API takes one `allowed_tools` object, not a list of them.
+    let wire = serde_json::json!({
+        "type": "allowed_tools",
+        "allowed_tools": {
+            "mode": "required",
+            "tools": [{"type": "function", "function": {"name": "get_weather"}}]
+        }
+    });
+
+    let choice: ChatCompletionToolChoiceOption = serde_json::from_value(wire.clone()).unwrap();
+    let ChatCompletionToolChoiceOption::AllowedTools(allowed) = &choice else {
+        panic!("expected an allowed_tools choice, got {choice:?}");
+    };
+    assert_eq!(allowed.allowed_tools.mode, ToolChoiceAllowedMode::Required);
+    assert_eq!(
+        allowed.allowed_tools.tools,
+        vec![serde_json::json!({"type": "function", "function": {"name": "get_weather"}})]
+    );
+    assert_eq!(serde_json::to_value(&choice).unwrap(), wire);
+
+    let list = serde_json::json!({
+        "type": "allowed_tools",
+        "allowed_tools": [{"mode": "required", "tools": []}]
+    });
+    assert!(
+        serde_json::from_value::<ChatCompletionToolChoiceOption>(list).is_err(),
+        "a list of allowed_tools entries is not the Chat Completions shape"
+    );
+}
+
 mod service_tier {
-    use async_openai::types::chat::{CreateChatCompletionResponse, ServiceTier};
+    use async_openai::types::chat::{
+        CreateChatCompletionRequest, CreateChatCompletionResponse, ServiceTier, ServiceTierResponse,
+    };
     use serde_json::{json, Value};
     use utoipa::PartialSchema;
 
@@ -125,7 +161,7 @@ mod service_tier {
             serde_json::from_value(response_with_tier("fast")).unwrap();
         assert_eq!(
             response.service_tier,
-            Some(ServiceTier::Other("fast".to_string()))
+            Some(ServiceTierResponse::Other("fast".to_string()))
         );
         assert_eq!(
             serde_json::to_value(&response).unwrap()["service_tier"],
@@ -137,17 +173,32 @@ mod service_tier {
     fn a_named_tier_deserializes_to_its_variant() {
         let response: CreateChatCompletionResponse =
             serde_json::from_value(response_with_tier("priority")).unwrap();
-        assert_eq!(response.service_tier, Some(ServiceTier::Priority));
+        assert_eq!(response.service_tier, Some(ServiceTierResponse::Priority));
+    }
+
+    #[test]
+    fn a_request_names_only_the_closed_tiers() {
+        let request = |tier: &str| {
+            json!({
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "hello"}],
+                "service_tier": tier
+            })
+        };
+        let named: CreateChatCompletionRequest =
+            serde_json::from_value(request("priority")).unwrap();
+        assert_eq!(named.service_tier, Some(ServiceTier::Priority));
+        serde_json::from_value::<CreateChatCompletionRequest>(request("fast")).unwrap_err();
     }
 
     #[test]
     fn a_tier_that_is_not_a_string_is_refused() {
-        serde_json::from_value::<ServiceTier>(json!(1)).unwrap_err();
+        serde_json::from_value::<ServiceTierResponse>(json!(1)).unwrap_err();
     }
 
     #[test]
     fn the_schema_is_any_string_and_lists_exactly_the_named_tiers() {
-        let schema = serde_json::to_value(ServiceTier::schema()).unwrap();
+        let schema = serde_json::to_value(ServiceTierResponse::schema()).unwrap();
         let any_of = schema["anyOf"].as_array().unwrap();
         assert_eq!(any_of.len(), 2, "{schema}");
         assert_eq!(any_of[1], json!({"type": "string"}), "{schema}");
@@ -160,9 +211,9 @@ mod service_tier {
             .collect();
         assert_eq!(named, ["auto", "default", "flex", "scale", "priority"]);
         for name in named {
-            let tier: ServiceTier = serde_json::from_value(json!(name)).unwrap();
+            let tier: ServiceTierResponse = serde_json::from_value(json!(name)).unwrap();
             assert!(
-                !matches!(tier, ServiceTier::Other(_)),
+                !matches!(tier, ServiceTierResponse::Other(_)),
                 "`{name}` is listed as a named tier but deserializes to `Other`"
             );
         }
