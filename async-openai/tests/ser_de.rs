@@ -94,3 +94,91 @@ fn allowed_tools_tool_choice_round_trips_in_the_chat_completions_shape() {
         "a list of allowed_tools entries is not the Chat Completions shape"
     );
 }
+
+mod service_tier {
+    use async_openai::types::chat::{
+        CreateChatCompletionRequest, CreateChatCompletionResponse, ServiceTier, ServiceTierResponse,
+    };
+    use serde_json::{json, Value};
+    use utoipa::PartialSchema;
+
+    fn response_with_tier(tier: &str) -> Value {
+        json!({
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "created": 1_755_639_134,
+            "model": "gpt-4o-mini",
+            "service_tier": tier,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": "ok"},
+                "finish_reason": "stop",
+                "logprobs": null
+            }]
+        })
+    }
+
+    #[test]
+    fn a_response_with_an_unnamed_tier_deserializes_and_keeps_it() {
+        let response: CreateChatCompletionResponse =
+            serde_json::from_value(response_with_tier("fast")).unwrap();
+        assert_eq!(
+            response.service_tier,
+            Some(ServiceTierResponse::Other("fast".to_string()))
+        );
+        assert_eq!(
+            serde_json::to_value(&response).unwrap()["service_tier"],
+            json!("fast")
+        );
+    }
+
+    #[test]
+    fn a_named_tier_deserializes_to_its_variant() {
+        let response: CreateChatCompletionResponse =
+            serde_json::from_value(response_with_tier("priority")).unwrap();
+        assert_eq!(response.service_tier, Some(ServiceTierResponse::Priority));
+    }
+
+    #[test]
+    fn a_request_names_only_the_closed_tiers() {
+        let request = |tier: &str| {
+            json!({
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "hello"}],
+                "service_tier": tier
+            })
+        };
+        let named: CreateChatCompletionRequest =
+            serde_json::from_value(request("priority")).unwrap();
+        assert_eq!(named.service_tier, Some(ServiceTier::Priority));
+        serde_json::from_value::<CreateChatCompletionRequest>(request("fast")).unwrap_err();
+    }
+
+    #[test]
+    fn a_tier_that_is_not_a_string_is_refused() {
+        serde_json::from_value::<ServiceTierResponse>(json!(1)).unwrap_err();
+    }
+
+    #[test]
+    fn the_schema_is_any_string_and_lists_exactly_the_named_tiers() {
+        let schema = serde_json::to_value(ServiceTierResponse::schema()).unwrap();
+        let any_of = schema["anyOf"].as_array().unwrap();
+        assert_eq!(any_of.len(), 2, "{schema}");
+        assert_eq!(any_of[1], json!({"type": "string"}), "{schema}");
+
+        let named: Vec<&str> = any_of[0]["enum"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_str().unwrap())
+            .collect();
+        assert_eq!(named, ["auto", "default", "flex", "scale", "priority"]);
+        for name in named {
+            let tier: ServiceTierResponse = serde_json::from_value(json!(name)).unwrap();
+            assert!(
+                !matches!(tier, ServiceTierResponse::Other(_)),
+                "`{name}` is listed as a named tier but deserializes to `Other`"
+            );
+        }
+    }
+}

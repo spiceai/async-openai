@@ -669,6 +669,7 @@ pub struct WebSearchOptions {
     pub user_location: Option<WebSearchUserLocation>,
 }
 
+/// The processing tier a request asks for.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTier {
@@ -679,14 +680,47 @@ pub enum ServiceTier {
     Priority,
 }
 
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+/// The processing tier a response reports it was served on.
+///
+/// The server adds tiers on its side and reports whichever one served the request, so a tier
+/// this type does not name deserializes to [`ServiceTierResponse::Other`] and serializes back
+/// unchanged. Requests keep the closed [`ServiceTier`].
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTierResponse {
-    Scale,
+    Auto,
     Default,
     Flex,
+    Scale,
     Priority,
+    /// A tier not named above, kept verbatim.
+    #[serde(untagged)]
+    Other(String),
 }
+
+impl ServiceTierResponse {
+    /// The wire names of the named variants.
+    const NAMED: [&'static str; 5] = ["auto", "default", "flex", "scale", "priority"];
+}
+
+/// Hand-written because the derive ignores `#[serde(untagged)]` on a variant and would describe
+/// [`ServiceTierResponse::Other`] as an object. The schema is any string, listing the named tiers.
+impl utoipa::PartialSchema for ServiceTierResponse {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::schema::{AnyOfBuilder, ObjectBuilder, Type};
+
+        AnyOfBuilder::new()
+            .item(
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(Self::NAMED)),
+            )
+            .item(ObjectBuilder::new().schema_type(Type::String))
+            .into()
+    }
+}
+
+impl ToSchema for ServiceTierResponse {}
 
 /// Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. Currently supported values are `low`, `medium`, and `high`.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
@@ -1118,7 +1152,7 @@ pub struct CreateChatCompletionResponse {
     pub model: String,
     /// The service tier used for processing the request. This field is only included if the `service_tier` parameter is specified in the request.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub service_tier: Option<ServiceTier>,
+    pub service_tier: Option<ServiceTierResponse>,
     /// This fingerprint represents the backend configuration that the model runs with.
     ///
     /// Can be used in conjunction with the `seed` request parameter to understand when backend changes have been made that might impact determinism.
@@ -1215,7 +1249,7 @@ pub struct CreateChatCompletionStreamResponse {
     /// The model to generate the completion.
     pub model: String,
     /// The service tier used for processing the request. This field is only included if the `service_tier` parameter is specified in the request.
-    pub service_tier: Option<ServiceTier>,
+    pub service_tier: Option<ServiceTierResponse>,
     /// This fingerprint represents the backend configuration that the model runs with.
     /// Can be used in conjunction with the `seed` request parameter to understand when backend changes have been made that might impact determinism.
     #[deprecated]

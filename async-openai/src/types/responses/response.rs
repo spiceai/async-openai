@@ -773,6 +773,7 @@ pub struct Prompt {
     pub variables: Option<ResponsePromptVariables>,
 }
 
+/// The processing tier a request asks for.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTier {
@@ -783,6 +784,48 @@ pub enum ServiceTier {
     Scale,
     Priority,
 }
+
+/// The processing tier a response reports it was served on.
+///
+/// The server adds tiers on its side and reports whichever one served the request, so a tier
+/// this type does not name deserializes to [`ServiceTierResponse::Other`] and serializes back
+/// unchanged. Requests keep the closed [`ServiceTier`].
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ServiceTierResponse {
+    Auto,
+    Default,
+    Flex,
+    Scale,
+    Priority,
+    /// A tier not named above, kept verbatim.
+    #[serde(untagged)]
+    Other(String),
+}
+
+impl ServiceTierResponse {
+    /// The wire names of the named variants.
+    const NAMED: [&'static str; 5] = ["auto", "default", "flex", "scale", "priority"];
+}
+
+/// Hand-written because the derive ignores `#[serde(untagged)]` on a variant and would describe
+/// [`ServiceTierResponse::Other`] as an object. The schema is any string, listing the named tiers.
+impl utoipa::PartialSchema for ServiceTierResponse {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::schema::{AnyOfBuilder, ObjectBuilder, Type};
+
+        AnyOfBuilder::new()
+            .item(
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(Self::NAMED)),
+            )
+            .item(ObjectBuilder::new().schema_type(Type::String))
+            .into()
+    }
+}
+
+impl ToSchema for ServiceTierResponse {}
 
 /// Truncation strategies.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
@@ -2489,7 +2532,7 @@ pub struct Response {
     ///
     /// When the `service_tier` parameter is set, the response body will include the `service_tier` value based on the processing mode actually used to serve the request. This response value may be different from the value set in the parameter.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub service_tier: Option<ServiceTier>,
+    pub service_tier: Option<ServiceTierResponse>,
 
     /// The status of the response generation.
     /// One of `completed`, `failed`, `in_progress`, `cancelled`, `queued`, or `incomplete`.
