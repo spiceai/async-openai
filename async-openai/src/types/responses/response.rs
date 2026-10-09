@@ -773,7 +773,12 @@ pub struct Prompt {
     pub variables: Option<ResponsePromptVariables>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
+/// The processing tier a request asks for, and the tier a response reports it was served on.
+///
+/// The set of tiers grows on the server side, and a response reports whichever tier served it,
+/// so a tier this type does not name deserializes to [`ServiceTier::Other`] and serializes back
+/// unchanged.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTier {
     #[default]
@@ -782,7 +787,34 @@ pub enum ServiceTier {
     Flex,
     Scale,
     Priority,
+    /// A tier not named above, kept verbatim.
+    #[serde(untagged)]
+    Other(String),
 }
+
+impl ServiceTier {
+    /// The wire names of the named variants.
+    const NAMED: [&'static str; 5] = ["auto", "default", "flex", "scale", "priority"];
+}
+
+/// Hand-written because the derive ignores `#[serde(untagged)]` on a variant and would describe
+/// [`ServiceTier::Other`] as an object. The schema is any string, listing the named tiers.
+impl utoipa::PartialSchema for ServiceTier {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::schema::{AnyOfBuilder, ObjectBuilder, Type};
+
+        AnyOfBuilder::new()
+            .item(
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .enum_values(Some(Self::NAMED)),
+            )
+            .item(ObjectBuilder::new().schema_type(Type::String))
+            .into()
+    }
+}
+
+impl ToSchema for ServiceTier {}
 
 /// Truncation strategies.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
