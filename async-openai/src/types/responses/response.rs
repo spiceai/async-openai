@@ -257,12 +257,6 @@ pub enum Item {
     ///     A message output from the model.
     Message(MessageItem),
 
-    /// Additional tool definitions supplied by `Codex` clients.
-    ///
-    /// Tool definitions and unrecognized fields are retained verbatim so a gateway can forward
-    /// the request without losing client metadata.
-    AdditionalTools(AdditionalTools),
-
     /// The results of a file search tool call. See the
     /// [file search guide](https://platform.openai.com/docs/guides/tools-file-search) for more information.
     FileSearchCall(FileSearchToolCall),
@@ -342,18 +336,6 @@ pub enum Item {
 
     /// A call to a custom tool created by the model.
     CustomToolCall(CustomToolCall),
-}
-
-/// Additional tool definitions supplied by `Codex` clients.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
-pub struct AdditionalTools {
-    /// The role that supplied the additional tools.
-    pub role: Role,
-    /// The additional tool definitions.
-    pub tools: Vec<serde_json::Value>,
-    /// Extension fields retained for lossless gateway forwarding.
-    #[serde(flatten)]
-    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Input item that can be used in the context for generating a response.
@@ -664,10 +646,6 @@ pub struct InputMessage {
     /// The role of the message input. One of `user`, `system`, or `developer`.
     /// Note: `assistant` is NOT allowed here; use OutputMessage instead.
     pub role: InputRole,
-    /// The unique ID of the message. Populated when a client replays a prior
-    /// message as input; preserved so a gateway forwards it verbatim.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
     /// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
     /// Populated when items are returned via API.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -837,10 +815,6 @@ pub struct CreateResponse {
     /// this response completes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation: Option<ConversationParam>,
-
-    /// Metadata supplied by a `Codex` client for the current request.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_metadata: Option<CodexClientMetadata>,
 
     /// Specify additional output data to include in the model response. Currently supported
     /// values are:
@@ -1040,35 +1014,6 @@ pub struct CreateResponse {
     pub truncation: Option<Truncation>,
 }
 
-/// Metadata supplied by a `Codex` client for the current request.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, ToSchema)]
-pub struct CodexClientMetadata {
-    /// Identifier for the `Codex` installation that created the request.
-    #[serde(
-        rename = "x-codex-installation-id",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub installation_id: Option<String>,
-    /// Identifier for the current `Codex` thread.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thread_id: Option<String>,
-    /// Identifier for the current `Codex` session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<String>,
-    /// Identifier for the current `Codex` window.
-    #[serde(rename = "x-codex-window-id", skip_serializing_if = "Option::is_none")]
-    pub window_id: Option<String>,
-    /// Identifier for the current `Codex` turn.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub turn_id: Option<String>,
-    /// Metadata associated with the current `Codex` turn.
-    #[serde(
-        rename = "x-codex-turn-metadata",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub turn_metadata: Option<String>,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
 pub enum ResponsePromptVariables {
@@ -1187,10 +1132,6 @@ pub struct Reasoning {
     /// `gpt-5`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<ReasoningSummary>,
-    /// Reasoning context scope supplied by Codex clients (e.g. `all_turns`). Kept
-    /// as a free string so an unrecognized value is forwarded, not rejected.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<String>,
 }
 
 /// o-series reasoning settings.
@@ -1872,11 +1813,8 @@ pub struct ResponseLogProb {
 /// A simple text output from the model.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct OutputTextContent {
-    /// The annotations of the text output. Omitted when a client replays a prior
-    /// assistant message as input, so it defaults to empty rather than failing.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// The annotations of the text output.
     pub annotations: Vec<Annotation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub logprobs: Option<Vec<LogProb>>,
     /// The text output from the model.
     pub text: String,
@@ -1961,11 +1899,8 @@ pub struct OutputMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<MessagePhase>,
     /// The status of the message input. One of `in_progress`, `completed`, or
-    /// `incomplete`. Populated when items are returned via the API, but omitted
-    /// when a client (e.g. Codex) replays a prior assistant message as input, so
-    /// it must be optional or the whole input array fails to deserialize.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<OutputStatus>,
+    /// `incomplete`. Populated when input items are returned via API.
+    pub status: OutputStatus,
     ///// The type of the output message. Always `message`.
     //pub r#type: MessageType,
 }
@@ -3201,10 +3136,6 @@ pub struct CustomToolCall {
     pub name: String,
     /// The unique ID of the custom tool call in the OpenAI platform.
     pub id: String,
-    /// The status of the item, present when a client replays a prior call as
-    /// input. Preserved so a gateway forwards it verbatim.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<FunctionCallStatus>,
 }
 
 /// A custom tool call item returned by the API.
