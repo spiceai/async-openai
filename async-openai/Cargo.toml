@@ -163,7 +163,7 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 derive_builder = { version = "0.20", optional = true }
 bytes = { version = "1.11", optional = true }
-utoipa = "5.2.0"
+utoipa = "6.0.0"
 
 # API dependencies - only needed when API features are enabled
 # We use a feature gate to enable these when any API feature is enabled
