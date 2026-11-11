@@ -3,8 +3,13 @@
 pub mod api_keys;
 pub mod audit_logs;
 pub mod certificates;
+pub mod external_keys;
+pub mod external_storage;
 pub mod groups;
 pub mod invites;
+pub mod organization_data_retention;
+pub mod organization_spend_alerts;
+pub mod organization_spend_limit;
 pub mod project_api_keys;
 pub mod project_rate_limits;
 pub mod project_service_accounts;

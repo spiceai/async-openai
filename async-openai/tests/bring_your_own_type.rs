@@ -1,3 +1,4 @@
+#![allow(deprecated)] // Exercise BYOT support for APIs retained until their scheduled retirement.
 #![allow(dead_code)]
 //! The purpose of this test to make sure that all _byot methods compiles with custom types.
 use std::pin::Pin;
@@ -31,21 +32,6 @@ async fn test_byot_files() {
         .await;
     let _r: Result<Value, OpenAIError> = client.files().retrieve_byot("file_id").await;
     let _r: Result<Value, OpenAIError> = client.files().delete_byot("file_id").await;
-}
-
-#[tokio::test]
-async fn test_byot_assistants() {
-    let client = Client::new();
-
-    let _r: Result<Value, OpenAIError> = client.assistants().create_byot(json!({})).await;
-    let _r: Result<Value, OpenAIError> = client.assistants().retrieve_byot("aid").await;
-    let _r: Result<Value, OpenAIError> = client.assistants().update_byot("aid", json!({})).await;
-    let _r: Result<Value, OpenAIError> = client
-        .assistants()
-        .query(&[("limit", 2)])
-        .unwrap()
-        .list_byot()
-        .await;
 }
 
 #[tokio::test]
@@ -170,120 +156,6 @@ impl TryFrom<eventsource_stream::Event> for MyThreadJson {
 }
 
 type MyThreadStreamingType = Pin<Box<dyn Stream<Item = Result<MyThreadJson, OpenAIError>> + Send>>;
-
-#[tokio::test]
-async fn test_byot_threads() {
-    let client = Client::new();
-
-    let _r: Result<Value, OpenAIError> = client.threads().create_and_run_byot(json!({})).await;
-    let _r: Result<MyThreadStreamingType, OpenAIError> =
-        client.threads().create_and_run_stream_byot(json!({})).await;
-    let _r: Result<Value, OpenAIError> = client.threads().create_byot(json!({})).await;
-    let _r: Result<Value, OpenAIError> = client.threads().retrieve_byot("thread_id").await;
-    let _r: Result<Value, OpenAIError> = client.threads().update_byot("thread_id", json!({})).await;
-    let _r: Result<Value, OpenAIError> = client.threads().delete_byot("thread_id").await;
-}
-
-#[tokio::test]
-async fn test_byot_messages() {
-    let client = Client::new();
-
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .messages("thread_id")
-        .create_byot(json!({}))
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .messages("thread_id")
-        .retrieve_byot("message_id")
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .messages("thread_id")
-        .update_byot("message_id", json!({}))
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .messages("thread_id")
-        .query(&[("limit", "2")])
-        .unwrap()
-        .list_byot()
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .messages("thread_id")
-        .delete_byot("message_id")
-        .await;
-}
-
-#[tokio::test]
-async fn test_byot_runs() {
-    let client = Client::new();
-
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .create_byot(json!({}))
-        .await;
-    let _r: Result<MyThreadStreamingType, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .create_stream_byot(json!({}))
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .retrieve_byot("run_id")
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .update_byot("run_id", json!({}))
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .query(&[("limit", "2")])
-        .unwrap()
-        .list_byot()
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .submit_tool_outputs_byot("run_id", json!({}))
-        .await;
-    let _r: Result<MyThreadStreamingType, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .submit_tool_outputs_stream_byot("run_id", json!({}))
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .cancel_byot("run_id")
-        .await;
-}
-
-#[tokio::test]
-async fn test_byot_run_steps() {
-    let client = Client::new();
-
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .steps("run_id")
-        .retrieve_byot("step_id")
-        .await;
-    let _r: Result<Value, OpenAIError> = client
-        .threads()
-        .runs("thread_id")
-        .steps("run_id")
-        .query(&[("limit", "2")])
-        .unwrap()
-        .list_byot()
-        .await;
-}
 
 #[tokio::test]
 async fn test_byot_vector_store_files() {
@@ -897,6 +769,7 @@ async fn test_byot_eval_run_output_items() {
 }
 
 #[tokio::test]
+#[allow(deprecated)] // Verify the BYOT methods while the deprecated Videos API remains available.
 async fn test_byot_videos() {
     let client = Client::new();
 

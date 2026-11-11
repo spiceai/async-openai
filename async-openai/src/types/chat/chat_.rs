@@ -1,3 +1,4 @@
+use crate::types::chat::ModerationResultBody;
 use std::collections::HashMap;
 
 use derive_builder::Builder;
@@ -9,7 +10,8 @@ use crate::{
     types::{
         chat::{
             CompletionTokensDetails, CustomGrammarFormatParam, FunctionCall, FunctionName,
-            FunctionObject, ImageUrl, PromptTokensDetails, ReasoningEffort, ResponseFormat,
+            FunctionObject, ImageUrl, PromptCacheBreakpointTTLEnum, PromptTokensDetails,
+            ReasoningEffort, ResponseFormat,
         },
         Metadata,
     },
@@ -27,12 +29,16 @@ pub enum Prompt {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StopConfiguration))]
 pub enum StopConfiguration {
     String(String),           // nullable: true
     StringArray(Vec<String>), // minItems: 1; maxItems: 4
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::Logprobs))]
 pub struct Logprobs {
     pub tokens: Vec<String>,
     pub token_logprobs: Vec<Option<f32>>, // Option is to account for null value in the list
@@ -42,13 +48,17 @@ pub struct Logprobs {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CompletionFinishReason))]
 pub enum CompletionFinishReason {
     Stop,
     Length,
     ContentFilter,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::Choice))]
 pub struct Choice {
     pub text: String,
     pub index: u32,
@@ -77,7 +87,10 @@ pub enum ChatCompletionFunctionCall {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::Role))]
 pub enum Role {
+    Developer,
     System,
     #[default]
     User,
@@ -88,6 +101,8 @@ pub enum Role {
 
 /// Usage statistics for the completion request.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CompletionUsage))]
 pub struct CompletionUsage {
     /// Number of tokens in the prompt.
     pub prompt_tokens: u32,
@@ -109,6 +124,8 @@ pub struct CompletionUsage {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestDeveloperMessage))]
 pub struct ChatCompletionRequestDeveloperMessage {
     /// The contents of the developer message.
     pub content: ChatCompletionRequestDeveloperMessageContent,
@@ -120,6 +137,8 @@ pub struct ChatCompletionRequestDeveloperMessage {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestDeveloperMessageContent))]
 pub enum ChatCompletionRequestDeveloperMessageContent {
     Text(String),
     Array(Vec<ChatCompletionRequestDeveloperMessageContentPart>),
@@ -128,6 +147,8 @@ pub enum ChatCompletionRequestDeveloperMessageContent {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestDeveloperMessageContentPart))]
 pub enum ChatCompletionRequestDeveloperMessageContentPart {
     Text(ChatCompletionRequestMessageContentPartText),
 }
@@ -138,6 +159,8 @@ pub enum ChatCompletionRequestDeveloperMessageContentPart {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestSystemMessage))]
 pub struct ChatCompletionRequestSystemMessage {
     /// The contents of the system message.
     pub content: ChatCompletionRequestSystemMessageContent,
@@ -152,11 +175,17 @@ pub struct ChatCompletionRequestSystemMessage {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestMessageContentPartText))]
 pub struct ChatCompletionRequestMessageContentPartText {
     pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_breakpoint: Option<PromptCacheBreakpointParam>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Builder, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestMessageContentPartRefusal))]
 pub struct ChatCompletionRequestMessageContentPartRefusal {
     /// The refusal message generated by the model.
     pub refusal: String,
@@ -168,12 +197,18 @@ pub struct ChatCompletionRequestMessageContentPartRefusal {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestMessageContentPartImage))]
 pub struct ChatCompletionRequestMessageContentPartImage {
     pub image_url: ImageUrl,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_breakpoint: Option<PromptCacheBreakpointParam>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::InputAudioFormat))]
 pub enum InputAudioFormat {
     Wav,
     #[default]
@@ -181,6 +216,8 @@ pub enum InputAudioFormat {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::InputAudio))]
 pub struct InputAudio {
     /// Base64 encoded audio data.
     pub data: String,
@@ -195,11 +232,17 @@ pub struct InputAudio {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestMessageContentPartAudio))]
 pub struct ChatCompletionRequestMessageContentPartAudio {
     pub input_audio: InputAudio,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_breakpoint: Option<PromptCacheBreakpointParam>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::FileObject))]
 pub struct FileObject {
     /// The base64 encoded file data, used when passing the file to the model
     /// as a string.
@@ -215,13 +258,19 @@ pub struct FileObject {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestMessageContentPartFile))]
 pub struct ChatCompletionRequestMessageContentPartFile {
     pub file: FileObject,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_breakpoint: Option<PromptCacheBreakpointParam>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestUserMessageContentPart))]
 pub enum ChatCompletionRequestUserMessageContentPart {
     Text(ChatCompletionRequestMessageContentPartText),
     ImageUrl(ChatCompletionRequestMessageContentPartImage),
@@ -232,6 +281,8 @@ pub enum ChatCompletionRequestUserMessageContentPart {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestSystemMessageContentPart))]
 pub enum ChatCompletionRequestSystemMessageContentPart {
     Text(ChatCompletionRequestMessageContentPartText),
 }
@@ -239,6 +290,8 @@ pub enum ChatCompletionRequestSystemMessageContentPart {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestAssistantMessageContentPart))]
 pub enum ChatCompletionRequestAssistantMessageContentPart {
     Text(ChatCompletionRequestMessageContentPartText),
     Refusal(ChatCompletionRequestMessageContentPartRefusal),
@@ -247,12 +300,16 @@ pub enum ChatCompletionRequestAssistantMessageContentPart {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestToolMessageContentPart))]
 pub enum ChatCompletionRequestToolMessageContentPart {
     Text(ChatCompletionRequestMessageContentPartText),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestSystemMessageContent))]
 pub enum ChatCompletionRequestSystemMessageContent {
     /// The text contents of the system message.
     Text(String),
@@ -262,6 +319,8 @@ pub enum ChatCompletionRequestSystemMessageContent {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestUserMessageContent))]
 pub enum ChatCompletionRequestUserMessageContent {
     /// The text contents of the message.
     Text(String),
@@ -271,6 +330,8 @@ pub enum ChatCompletionRequestUserMessageContent {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestAssistantMessageContent))]
 pub enum ChatCompletionRequestAssistantMessageContent {
     /// The text contents of the message.
     Text(String),
@@ -280,6 +341,8 @@ pub enum ChatCompletionRequestAssistantMessageContent {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestToolMessageContent))]
 pub enum ChatCompletionRequestToolMessageContent {
     /// The text contents of the tool message.
     Text(String),
@@ -293,6 +356,8 @@ pub enum ChatCompletionRequestToolMessageContent {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestUserMessage))]
 pub struct ChatCompletionRequestUserMessage {
     /// The contents of the user message.
     pub content: ChatCompletionRequestUserMessageContent,
@@ -302,6 +367,8 @@ pub struct ChatCompletionRequestUserMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestAssistantMessageAudio))]
 pub struct ChatCompletionRequestAssistantMessageAudio {
     /// Unique identifier for a previous audio response from the model.
     pub id: String,
@@ -313,6 +380,8 @@ pub struct ChatCompletionRequestAssistantMessageAudio {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestAssistantMessage))]
 pub struct ChatCompletionRequestAssistantMessage {
     /// The contents of the assistant message. Required unless `tool_calls` or `function_call` is specified.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -342,6 +411,8 @@ pub struct ChatCompletionRequestAssistantMessage {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestToolMessage))]
 pub struct ChatCompletionRequestToolMessage {
     /// The contents of the tool message.
     pub content: ChatCompletionRequestToolMessageContent,
@@ -354,6 +425,8 @@ pub struct ChatCompletionRequestToolMessage {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestFunctionMessage))]
 pub struct ChatCompletionRequestFunctionMessage {
     /// The return value from the function call, to return to the model.
     pub content: Option<String>,
@@ -364,6 +437,8 @@ pub struct ChatCompletionRequestFunctionMessage {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "role")]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionRequestMessage))]
 pub enum ChatCompletionRequestMessage {
     Developer(ChatCompletionRequestDeveloperMessage),
     System(ChatCompletionRequestSystemMessage),
@@ -376,12 +451,16 @@ pub enum ChatCompletionRequestMessage {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionMessageToolCalls))]
 pub enum ChatCompletionMessageToolCalls {
     Function(ChatCompletionMessageToolCall),
     Custom(ChatCompletionMessageCustomToolCall),
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionMessageToolCall))]
 pub struct ChatCompletionMessageToolCall {
     /// The ID of the tool call.
     pub id: String,
@@ -390,6 +469,8 @@ pub struct ChatCompletionMessageToolCall {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionMessageCustomToolCall))]
 pub struct ChatCompletionMessageCustomToolCall {
     /// The ID of the tool call.
     pub id: String,
@@ -398,6 +479,8 @@ pub struct ChatCompletionMessageCustomToolCall {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CustomTool))]
 pub struct CustomTool {
     /// The name of the custom tool to call.
     pub name: String,
@@ -406,6 +489,8 @@ pub struct CustomTool {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionResponseMessageAudio))]
 pub struct ChatCompletionResponseMessageAudio {
     /// Unique identifier for this audio response.
     pub id: String,
@@ -419,11 +504,15 @@ pub struct ChatCompletionResponseMessageAudio {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionResponseMessageAnnotation))]
 pub enum ChatCompletionResponseMessageAnnotation {
     UrlCitation { url_citation: UrlCitation },
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::UrlCitation))]
 pub struct UrlCitation {
     /// The index of the last character of the URL citation in the message.
     pub end_index: u32,
@@ -436,7 +525,9 @@ pub struct UrlCitation {
 }
 
 /// A chat completion message generated by the model.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionResponseMessage))]
 pub struct ChatCompletionResponseMessage {
     /// The contents of the message.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -476,6 +567,8 @@ pub struct ChatCompletionResponseMessage {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionFunctions))]
 pub struct ChatCompletionFunctions {
     /// The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
     pub name: String,
@@ -503,12 +596,16 @@ pub enum ChatCompletionToolType {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionTool))]
 pub struct ChatCompletionTool {
     pub function: FunctionObject,
 }
 
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionTools))]
 pub enum ChatCompletionTools {
     /// A function tool that can be used to generate a response.
     Function(ChatCompletionTool),
@@ -517,11 +614,15 @@ pub enum ChatCompletionTools {
 }
 
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CustomToolChatCompletions))]
 pub struct CustomToolChatCompletions {
     pub custom: CustomToolProperties,
 }
 
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CustomToolProperties))]
 pub struct CustomToolProperties {
     /// The name of the custom tool, used to identify it in tool calls.
     pub name: String,
@@ -535,6 +636,8 @@ pub struct CustomToolProperties {
 
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CustomToolPropertiesFormat))]
 pub enum CustomToolPropertiesFormat {
     /// Unconstrained free-form text.
     #[default]
@@ -545,16 +648,22 @@ pub enum CustomToolPropertiesFormat {
 
 /// Specifies a tool the model should use. Use to force the model to call a specific function.
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionNamedToolChoice))]
 pub struct ChatCompletionNamedToolChoice {
     pub function: FunctionName,
 }
 
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionNamedToolChoiceCustom))]
 pub struct ChatCompletionNamedToolChoiceCustom {
     pub custom: CustomName,
 }
 
 #[derive(Clone, Serialize, Default, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CustomName))]
 pub struct CustomName {
     /// The name of the custom tool to call.
     pub name: String,
@@ -581,18 +690,24 @@ pub enum ChatCompletionToolChoiceOption {
 /// `{"type": "allowed_tools", "allowed_tools": {"mode": ..., "tools": [...]}}`: one mode over
 /// one tool list, as the Chat Completions API defines it.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionAllowedToolsChoice))]
 pub struct ChatCompletionAllowedToolsChoice {
     pub allowed_tools: ChatCompletionAllowedTools,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ToolChoiceAllowedMode))]
 pub enum ToolChoiceAllowedMode {
     Auto,
     Required,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionAllowedTools))]
 pub struct ChatCompletionAllowedTools {
     /// Constrains the tools available to the model to a pre-defined set.
     ///
@@ -615,6 +730,8 @@ pub struct ChatCompletionAllowedTools {
 
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ToolChoiceOptions))]
 pub enum ToolChoiceOptions {
     #[default]
     None,
@@ -625,6 +742,8 @@ pub enum ToolChoiceOptions {
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 /// The amount of context window space to use for the search.
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::WebSearchContextSize))]
 pub enum WebSearchContextSize {
     Low,
     #[default]
@@ -634,12 +753,16 @@ pub enum WebSearchContextSize {
 
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::WebSearchUserLocationType))]
 pub enum WebSearchUserLocationType {
     Approximate,
 }
 
 /// Approximate location parameters for the search.
 #[derive(Clone, Serialize, Debug, Default, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::WebSearchLocation))]
 pub struct WebSearchLocation {
     ///  The two-letter [ISO country code](https://en.wikipedia.org/wiki/ISO_3166-1) of the user, e.g. `US`.
     pub country: Option<String>,
@@ -652,6 +775,8 @@ pub struct WebSearchLocation {
 }
 
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::WebSearchUserLocation))]
 pub struct WebSearchUserLocation {
     //  The type of location approximation. Always `approximate`.
     pub r#type: WebSearchUserLocationType,
@@ -661,6 +786,8 @@ pub struct WebSearchUserLocation {
 
 /// Options for the web search tool.
 #[derive(Clone, Serialize, Debug, Default, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::WebSearchOptions))]
 pub struct WebSearchOptions {
     /// High level guidance for the amount of context window space to use for the search. One of `low`, `medium`, or `high`. `medium` is the default.
     pub search_context_size: Option<WebSearchContextSize>,
@@ -672,12 +799,16 @@ pub struct WebSearchOptions {
 /// The processing tier a request asks for.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ServiceTier))]
 pub enum ServiceTier {
     Auto,
     Default,
     Flex,
     Scale,
     Priority,
+    // Closed on purpose: a request names only the tiers above, so a tier upstream's spec
+    // adds (`fast`) is refused. Replies accept any tier via `ServiceTierResponse`.
 }
 
 /// The processing tier a response reports it was served on.
@@ -725,6 +856,8 @@ impl ToSchema for ServiceTierResponse {}
 /// Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. Currently supported values are `low`, `medium`, and `high`.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::Verbosity))]
 pub enum Verbosity {
     Low,
     #[default]
@@ -740,6 +873,8 @@ pub enum Verbosity {
 /// audio](https://platform.openai.com/docs/guides/audio). To request that this model generate both text and audio responses, you can use: `["text", "audio"]`
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ResponseModalities))]
 pub enum ResponseModalities {
     Text,
     Audio,
@@ -748,6 +883,8 @@ pub enum ResponseModalities {
 /// The content that should be matched when generating a model response. If generated tokens would match this content, the entire model response can be returned much more quickly.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::PredictionContentContent))]
 pub enum PredictionContentContent {
     /// The content used for a Predicted Output. This is often the text of a file you are regenerating with minor changes.
     Text(String),
@@ -758,6 +895,8 @@ pub enum PredictionContentContent {
 /// Static predicted output content, such as the content of a text file that is being regenerated.
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase", content = "content")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::PredictionContent))]
 pub enum PredictionContent {
     /// The type of the predicted content you want to provide. This type is
     /// currently always `content`.
@@ -783,6 +922,8 @@ pub enum ChatCompletionAudioVoice {
 
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionAudioFormat))]
 pub enum ChatCompletionAudioFormat {
     Wav,
     Aac,
@@ -793,6 +934,8 @@ pub enum ChatCompletionAudioFormat {
 }
 
 #[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionAudio))]
 pub struct ChatCompletionAudio {
     /// The voice the model uses to respond. Supported built-in voices are `alloy`, `ash`,
     /// `ballad`, `coral`, `echo`, `fable`, `nova`, `onyx`, `sage`, `shimmer`, `marin`, and `cedar`.
@@ -807,6 +950,8 @@ pub struct ChatCompletionAudio {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CreateChatCompletionRequest))]
 pub struct CreateChatCompletionRequest {
     /// A list of messages comprising the conversation so far. Depending on the
     /// [model](https://platform.openai.com/docs/models) you use, different message types (modalities)
@@ -815,10 +960,9 @@ pub struct CreateChatCompletionRequest {
     /// [audio](https://platform.openai.com/docs/guides/audio).
     pub messages: Vec<ChatCompletionRequestMessage>, // min: 1
 
-    /// Model ID used to generate the response, like `gpt-4o` or `o3`. OpenAI
+    /// Model ID used to generate the response, like `gpt-6-astra` or `o3`. OpenAI
     /// offers a wide range of models with different capabilities, performance
-    /// characteristics, and price points. Refer to the
-    /// [model guide](https://platform.openai.com/docs/models)
+    /// characteristics, and price points. Refer to the [model guide](https://platform.openai.com/docs/models)
     /// to browse and compare available models.
     pub model: String,
 
@@ -858,12 +1002,14 @@ pub struct CreateChatCompletionRequest {
     /// their existing frequency in the text so far, decreasing the model's
     /// likelihood to repeat the same line verbatim.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(minimum = -2, maximum = 2))]
     pub frequency_penalty: Option<f32>, // min: -2.0, max: 2.0, default: 0
 
     /// Number between -2.0 and 2.0. Positive values penalize new tokens based on
     /// whether they appear in the text so far, increasing the model's likelihood
     /// to talk about new topics.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(minimum = -2, maximum = 2))]
     pub presence_penalty: Option<f32>, // min: -2.0, max: 2.0, default 0
 
     /// This tool searches the web for relevant results to use in a response.
@@ -876,6 +1022,7 @@ pub struct CreateChatCompletionRequest {
     /// In some cases, the number of returned tokens may be fewer than requested.
     /// `logprobs` must be set to `true` if this parameter is used.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(minimum = 0, maximum = 20))]
     pub top_logprobs: Option<u8>,
 
     /// An object specifying the format that the model must output.
@@ -925,6 +1072,7 @@ pub struct CreateChatCompletionRequest {
     /// The exact effect will vary per model, but values between -1 and 1 should decrease or increase likelihood of selection;
     /// values like -100 or 100 should result in a ban or exclusive selection of the relevant token.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(schema_with = crate::types::shared::schema::logit_bias))]
     pub logit_bias: Option<HashMap<String, i8>>, // default: null
 
     /// Whether to return log probabilities of the output tokens or not. If true,
@@ -944,6 +1092,7 @@ pub struct CreateChatCompletionRequest {
     /// charged based on the number of generated tokens across all of the choices. Keep `n` as `1` to
     /// minimize costs.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(minimum = 1, maximum = 128))]
     pub n: Option<u8>, // min:1, max: 128, default: 1
 
     /// Configuration for a [Predicted Output](https://platform.openai.com/docs/guides/predicted-outputs),
@@ -982,6 +1131,7 @@ pub struct CreateChatCompletionRequest {
     ///
     /// We generally recommend altering this or `top_p` but not both.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(minimum = 0, maximum = 2))]
     pub temperature: Option<f32>, // min: 0, max: 2, default: 1,
 
     /// An alternative to sampling with temperature, called nucleus sampling,
@@ -990,6 +1140,7 @@ pub struct CreateChatCompletionRequest {
     ///
     ///  We generally recommend altering this or `temperature` but not both.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(minimum = 0, maximum = 1))]
     pub top_p: Option<f32>, // min: 0, max: 1, default: 1
 
     /// A list of tools the model may call. You can provide either
@@ -1058,10 +1209,18 @@ pub struct CreateChatCompletionRequest {
     ///  Developer-defined tags and values used for filtering completions in the [dashboard](https://platform.openai.com/chat-completions).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>, // nullable: true
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_options: Option<crate::types::chat::PromptCacheOptionsParam>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub moderation: Option<crate::types::chat::ModerationParam>,
 }
 
 /// Options for streaming response. Only set this when you set `stream: true`.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionStreamOptions))]
 pub struct ChatCompletionStreamOptions {
     /// If set, an additional chunk will be streamed before the `data: [DONE]`
     /// message. The `usage` field on this chunk shows the token usage statistics
@@ -1087,6 +1246,8 @@ pub struct ChatCompletionStreamOptions {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::FinishReason))]
 pub enum FinishReason {
     Stop,
     Length,
@@ -1095,7 +1256,9 @@ pub enum FinishReason {
     FunctionCall,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::TopLogprobs))]
 pub struct TopLogprobs {
     /// The token.
     pub token: String,
@@ -1105,7 +1268,9 @@ pub struct TopLogprobs {
     pub bytes: Option<Vec<u8>>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionTokenLogprob))]
 pub struct ChatCompletionTokenLogprob {
     /// The token.
     pub token: String,
@@ -1117,14 +1282,18 @@ pub struct ChatCompletionTokenLogprob {
     pub top_logprobs: Vec<TopLogprobs>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatChoiceLogprobs))]
 pub struct ChatChoiceLogprobs {
     /// A list of message content tokens with log probability information.
     pub content: Option<Vec<ChatCompletionTokenLogprob>>,
     pub refusal: Option<Vec<ChatCompletionTokenLogprob>>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatChoice))]
 pub struct ChatChoice {
     /// The index of the choice in the list of choices.
     pub index: u32,
@@ -1141,7 +1310,9 @@ pub struct ChatChoice {
 }
 
 /// Represents a chat completion response returned by model, based on the provided input.
-#[derive(Debug, Deserialize, Clone, PartialEq, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CreateChatCompletionResponse))]
 pub struct CreateChatCompletionResponse {
     /// A unique identifier for the chat completion.
     pub id: String,
@@ -1164,6 +1335,11 @@ pub struct CreateChatCompletionResponse {
     /// The object type, which is always `chat.completion`.
     pub object: String,
     pub usage: Option<CompletionUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<crate::types::metadata::Metadata>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub moderation: Option<ChatCompletionModeration>,
 }
 
 /// Parsed server side events stream until an \[DONE\] is received from server.
@@ -1171,7 +1347,9 @@ pub struct CreateChatCompletionResponse {
 pub type ChatCompletionResponseStream =
     crate::types::stream::StreamResponse<CreateChatCompletionStreamResponse>;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::FunctionCallStream))]
 pub struct FunctionCallStream {
     /// The name of the function to call.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1184,24 +1362,33 @@ pub struct FunctionCallStream {
     pub arguments: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionMessageToolCallChunk))]
 pub struct ChatCompletionMessageToolCallChunk {
     pub index: u32,
     /// The ID of the tool call.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     /// The type of the tool. Currently, only `function` is supported.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<FunctionType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub function: Option<FunctionCallStream>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::FunctionType))]
 pub enum FunctionType {
     Function,
 }
 
 /// A chat completion delta generated by streamed model responses.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionStreamResponseDelta))]
 pub struct ChatCompletionStreamResponseDelta {
     /// The contents of the chunk message.
     pub content: Option<String>,
@@ -1214,9 +1401,15 @@ pub struct ChatCompletionStreamResponseDelta {
     pub role: Option<Role>,
     /// The refusal message generated by the model.
     pub refusal: Option<String>,
+    /// A partial audio response. Audio chunks may carry an ID, base64 data, or
+    /// transcript text; the final audio update contains only its expiry timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio: Option<ChatCompletionStreamAudio>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatChoiceStream))]
 pub struct ChatChoiceStream {
     /// The index of the choice in the list of choices.
     pub index: u32,
@@ -1239,7 +1432,9 @@ pub struct ChatChoiceStream {
 }
 
 /// Represents a streamed chunk of a chat completion response returned by the model, based on the provided input. [Learn more](https://platform.openai.com/docs/guides/streaming-responses).
-#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::CreateChatCompletionStreamResponse))]
 pub struct CreateChatCompletionStreamResponse {
     /// A unique identifier for the chat completion. Each chunk has the same ID.
     pub id: String,
@@ -1262,10 +1457,20 @@ pub struct CreateChatCompletionStreamResponse {
     /// An optional field that will only be present when you set `stream_options: {"include_usage": true}` in your request.
     /// When present, it contains a null value except for the last chunk which contains the token usage statistics for the entire request.
     pub usage: Option<CompletionUsage>,
+    /// An obfuscation string added to normalize the size of streamed chunks as a
+    /// mitigation to certain side-channel attacks. The field is included by
+    /// default and omitted when `stream_options.include_obfuscation` is `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub obfuscation: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub moderation: Option<ChatCompletionModeration>,
 }
 
 /// An object representing a list of Chat Completions.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionList))]
 pub struct ChatCompletionList {
     /// The type of this object. It is always set to "list".
     pub object: String,
@@ -1280,7 +1485,9 @@ pub struct ChatCompletionList {
 }
 
 /// Response when deleting a chat completion.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionDeleted))]
 pub struct ChatCompletionDeleted {
     /// The type of object being deleted.
     pub object: String,
@@ -1293,31 +1500,42 @@ pub struct ChatCompletionDeleted {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ContentPart))]
 pub enum ContentPart {
-    Text(ChatCompletionRequestMessageContentPartText),
-    ImageUrl(ChatCompletionRequestMessageContentPartImage),
+    Text(StoredMessageTextPart),
+    ImageUrl(StoredMessageImageUrlPart),
+    InputAudio(StoredMessageInputAudioPart),
+    File(StoredMessageFilePart),
 }
 
-/// A chat completion message with additional fields for listing.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct ChatCompletionMessageListItem {
+/// A message in a stored chat completion.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionStoreMessage))]
+pub struct ChatCompletionStoreMessage {
     /// The identifier of the chat message.
     pub id: String,
-    /// If a content parts array was provided, this is an array of `text` and `image_url` parts. Otherwise, null.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The role of the author: user, assistant, tool, system, function, or developer.
+    pub role: Role,
+    /// The text content of the stored message, or null.
+    pub content: Option<String>,
+    /// Original input content parts (text, image, audio, or file), or null.
     pub content_parts: Option<Vec<ContentPart>>,
-
-    #[serde(flatten)]
-    pub message: ChatCompletionResponseMessage,
+    /// The optional name of the author.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// An object representing a list of chat completion messages.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionMessageList))]
 pub struct ChatCompletionMessageList {
     /// The type of this object. It is always set to "list".
     pub object: String,
     /// An array of chat completion message objects.
-    pub data: Vec<ChatCompletionMessageListItem>,
+    pub data: Vec<ChatCompletionStoreMessage>,
     /// The identifier of the first chat message in the data array.
     pub first_id: Option<String>,
     /// The identifier of the last chat message in the data array.
@@ -1333,7 +1551,175 @@ pub struct ChatCompletionMessageList {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::UpdateChatCompletionRequest))]
 pub struct UpdateChatCompletionRequest {
     /// Set of 16 key-value pairs that can be attached to an object.
     pub metadata: Metadata,
+}
+
+/// Moderation results or errors for the request input and generated output.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionModeration))]
+pub struct ChatCompletionModeration {
+    /// Moderation for the request input.
+    pub input: ChatCompletionModerationInput,
+    /// Moderation for the generated output.
+    pub output: ChatCompletionModerationOutput,
+}
+
+/// An error produced while attempting moderation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionModerationError))]
+pub struct ChatCompletionModerationError {
+    /// The error code.
+    pub code: String,
+    /// The error message.
+    pub message: String,
+}
+
+/// Moderation for the request input.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[serde(tag = "type")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionModerationInput))]
+pub enum ChatCompletionModerationInput {
+    #[serde(rename = "moderation_results")]
+    Results(Box<ChatCompletionModerationResults>),
+    #[serde(rename = "error")]
+    Error(Box<ChatCompletionModerationError>),
+}
+
+/// Moderation for the generated output.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[serde(tag = "type")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionModerationOutput))]
+pub enum ChatCompletionModerationOutput {
+    #[serde(rename = "moderation_results")]
+    Results(Box<ChatCompletionModerationResults>),
+    #[serde(rename = "error")]
+    Error(Box<ChatCompletionModerationError>),
+}
+
+/// Successful moderation results for the request input or generated output.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionModerationResults))]
+pub struct ChatCompletionModerationResults {
+    /// The moderation model used to generate the results.
+    pub model: String,
+    /// A list of moderation results.
+    pub results: Vec<ModerationResultBodyItem>,
+}
+
+/// Tagged ModerationResultBody content used outside a union.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ModerationResultBodyItem))]
+pub enum ModerationResultBodyItem {
+    ModerationResult(ModerationResultBody),
+}
+
+/// Marks the exact end of a reusable prompt prefix. When ttl is omitted, the breakpoint inherits
+/// the request TTL. The boundary is not rounded to a token block.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::PromptCacheBreakpointParam))]
+pub struct PromptCacheBreakpointParam {
+    /// The breakpoint mode. Always `explicit`.
+    pub mode: PromptCacheBreakpointParamMode,
+
+    /// The minimum lifetime of this cache breakpoint. Defaults to the request TTL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<PromptCacheBreakpointTTLEnum>,
+}
+
+/// The breakpoint mode. Always `explicit`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::PromptCacheBreakpointParamMode))]
+#[serde(rename_all = "lowercase")]
+pub enum PromptCacheBreakpointParamMode {
+    Explicit,
+}
+
+/// Audio output included in a streamed chat completion delta.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::ChatCompletionStreamAudio))]
+pub struct ChatCompletionStreamAudio {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Unix timestamp (seconds) when the audio expires.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transcript: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageTextPart))]
+pub struct StoredMessageTextPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageImageUrlPart))]
+pub struct StoredMessageImageUrlPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<StoredMessageImageUrl>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageInputAudioPart))]
+pub struct StoredMessageInputAudioPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_audio: Option<StoredMessageInputAudio>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageFilePart))]
+pub struct StoredMessageFilePart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<StoredMessageFile>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageImageUrl))]
+pub struct StoredMessageImageUrl {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageInputAudio))]
+pub struct StoredMessageInputAudio {
+    pub data: String,
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = async_openai::StoredMessageFile))]
+pub struct StoredMessageFile {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_data: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
 }

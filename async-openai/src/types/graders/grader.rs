@@ -61,7 +61,7 @@ pub enum GraderTextSimilarityEvaluationMetric {
 }
 
 /// Python grader.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct GraderPython {
     /// The name of the grader.
     pub name: String,
@@ -72,7 +72,7 @@ pub struct GraderPython {
 }
 
 /// Score model grader.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct GraderScoreModel {
     /// The name of the grader.
     pub name: String,
@@ -84,12 +84,12 @@ pub struct GraderScoreModel {
     /// Optional sampling parameters.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sampling_params: Option<GraderScoreModelSamplingParams>,
-    /// The range of the score. Defaults to [0, 1].
+    /// The service requires two numbers for the score range. Defaults to `[0, 1]`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub range: Option<Vec<f64>>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct GraderScoreModelSamplingParams {
     /// A seed value to initialize the randomness, during sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -108,7 +108,7 @@ pub struct GraderScoreModelSamplingParams {
     pub reasoning_effort: Option<ReasoningEffort>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct GraderLabelModel {
     /// The name of the grader.
     pub name: String,
@@ -136,7 +136,7 @@ pub enum Graders {
 pub struct GraderMulti {
     /// The name of the grader.
     pub name: String,
-    pub graders: Graders,
+    pub graders: std::collections::HashMap<String, Graders>,
     /// A formula to calculate the output based on grader results.
     pub calculate_output: String,
 }

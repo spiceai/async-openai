@@ -204,7 +204,70 @@
 //! ## Examples
 //! For full working examples for all supported features see [examples](https://github.com/64bit/async-openai/tree/main/examples) directory in the repository.
 //!
+//! ## OpenAPI
+//!
+//! Enable `openapi` together with `chat-completion-types` and/or `completion-types`
+//! to use utoipa 5's `ToSchema` with those request, response, streaming chat, and
+//! nested types. Other API families are not yet covered.
+//!
+//! For example, compose an upstream request with your own fields:
+//!
+//! ```
+//! # #[cfg(all(feature = "openapi", feature = "chat-completion-types"))]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use async_openai::types::chat::CreateChatCompletionRequest;
+//! use serde::{Deserialize, Serialize};
+//! use utoipa::{OpenApi, ToSchema};
+//!
+//! #[derive(Serialize, Deserialize, ToSchema)]
+//! struct ExtendedChatRequest {
+//!     #[serde(flatten)]
+//!     request: CreateChatCompletionRequest,
+//!     application_tag: Option<String>,
+//! }
+//!
+//! #[derive(OpenApi)]
+//! #[openapi(components(schemas(ExtendedChatRequest)))]
+//! struct ApiDoc;
+//!
+//! let json = ApiDoc::openapi().to_pretty_json()?;
+//! # assert!(json.contains("async_openai.CreateChatCompletionRequest"));
+//! # Ok(())
+//! # }
+//! # #[cfg(not(all(feature = "openapi", feature = "chat-completion-types")))]
+//! # fn main() {}
+//! ```
+//!
+//! OpenAPI component names use a flat `async_openai.` prefix, for example
+//! `async_openai.ImageDetail`, to distinguish them from downstream types. These
+//! names are document identifiers, not Rust module paths; imports remain under
+//! `async_openai::types::chat` or `async_openai::types::completions`. Shared types
+//! keep one component name regardless of which public module re-exports them.
+//!
+//! Request schemas include documented OpenAI numeric ranges for sampling parameters,
+//! counts, and logit biases. These are schema constraints only: they do not add
+//! validation to Serde, builders, or HTTP requests. The schemas do not express every
+//! server rule, including model-dependent limits and relationships between fields.
+//!
+//! Downstream servers can use [`utoipa::Modify`](https://docs.rs/utoipa/5/utoipa/trait.Modify.html)
+//! or edit the generated document to replace or remove constraints. For example,
+//! changing the `n` property's `maximum` from 128 to 255 widens its documented range;
+//! clearing `minimum` and `maximum` removes the explicit bounds. This does not
+//! widen the Rust field's `u8` range. Edits to a shared component affect all its
+//! references; clone and rename it for endpoint-specific changes. Adding an
+//! `allOf` constraint can narrow an inherited range, but cannot widen it.
+//! Schema generation does not enable the HTTP client.
+//!
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
+// This fork derives utoipa 6 `ToSchema` on the request and response types
+// unconditionally. Upstream's `openapi` feature derives a second, utoipa 5
+// implementation on the same types, so the two cannot be built together.
+#[cfg(feature = "openapi")]
+compile_error!(
+    "the `openapi` feature is not supported by the spiceai fork of async-openai: \
+     `utoipa::ToSchema` (utoipa 6) is always derived, so do not enable `openapi`"
+);
 
 #[cfg(all(feature = "_api", feature = "byot"))]
 #[allow(unused_imports)]
@@ -224,8 +287,6 @@ pub(crate) use async_openai_macros::byot_passthrough as byot;
 
 #[cfg(feature = "administration")]
 mod admin;
-#[cfg(feature = "assistant")]
-mod assistants;
 #[cfg(feature = "audio")]
 mod audio;
 #[cfg(feature = "batch")]
@@ -285,6 +346,7 @@ pub mod types;
 #[cfg(feature = "upload")]
 mod uploads;
 #[cfg(any(
+    feature = "content-provenance-checks",
     feature = "audio",
     feature = "file",
     feature = "upload",
@@ -304,18 +366,15 @@ pub mod webhooks;
 // admin::* would be good - however its expanded here so that docs.rs shows the feature flags
 #[cfg(feature = "administration")]
 pub use admin::{
-    Admin, AdminAPIKeys, AuditLogs, Certificates, GroupRoles, GroupUsers, Groups, Invites,
-    ProjectAPIKeys, ProjectCertificates, ProjectGroupRoles, ProjectGroups, ProjectRateLimits,
-    ProjectRoles, ProjectServiceAccounts, ProjectUserRoles, ProjectUsers, Projects, Roles, Usage,
-    UserRoles, Users,
+    Admin, AdminAPIKeys, AuditLogs, Certificates, ExternalKeys, ExternalStorage, GroupRoles,
+    GroupUsers, Groups, Invites, OrganizationDataRetentions, OrganizationSpendAlerts,
+    OrganizationSpendLimit, ProjectAPIKeys, ProjectCertificates, ProjectDataRetentions,
+    ProjectGroupRoles, ProjectGroups, ProjectHostedToolPermission, ProjectModelPermission,
+    ProjectRateLimits, ProjectRoles, ProjectServiceAccounts, ProjectSpendAlerts, ProjectSpendLimit,
+    ProjectUserRoles, ProjectUsers, Projects, Roles, Usage, UserRoles, Users,
 };
-#[cfg(feature = "assistant")]
-#[deprecated(
-    note = "Assistants API is deprecated and will be removed in August 2026. Use the Responses API."
-)]
-#[allow(deprecated)]
-pub use assistants::{Assistants, Messages, Runs, Steps, Threads};
 #[cfg(feature = "audio")]
+#[allow(deprecated)]
 pub use audio::{Audio, Speech, Transcriptions, Translations};
 #[cfg(feature = "batch")]
 pub use batches::Batches;
@@ -356,4 +415,20 @@ pub use uploads::Uploads;
 #[cfg(feature = "vectorstore")]
 pub use vectorstores::{VectorStoreFileBatches, VectorStoreFiles, VectorStores};
 #[cfg(feature = "video")]
+#[allow(deprecated)]
 pub use video::Videos;
+
+#[cfg(feature = "safety")]
+mod safety;
+#[cfg(feature = "safety")]
+pub use safety::*;
+
+#[cfg(feature = "content-provenance-checks")]
+mod content_provenance_checks;
+#[cfg(feature = "content-provenance-checks")]
+pub use content_provenance_checks::ContentProvenanceChecks;
+
+#[cfg(feature = "decisions")]
+mod decisions;
+#[cfg(feature = "decisions")]
+pub use decisions::Decisions;

@@ -34,17 +34,16 @@
 
 | What | APIs | Crate Feature Flags |
 |---|---|---|
-| **Responses API** | Responses, Conversations, Streaming events | `responses` |
+| **Responses API** | Responses, Conversations, Streaming events, Websocket Events | `responses` |
 | **Webhooks** | Webhook Events | `webhook` |
-| **Platform APIs** | Audio, Audio Streaming, Videos, Images, Image Streaming, Embeddings, Evals, Fine-tuning, Graders, Batch, Files, Uploads, Models, Moderations | `audio`, `video`, `image`, `embedding`, `evals`, `finetuning`, `grader`, `batch`, `file`, `upload`, `model`, `moderation` |
+| **Platform APIs** | Audio, Audio Streaming, Videos, Images, Image Streaming, Embeddings, Evals, Fine-tuning, Graders, Batch, Files, Uploads, Models, Moderations, Decisions, Safety Alerts and Cases, Content Provenance Checks | `audio`, `video`, `image`, `embedding`, `evals`, `finetuning`, `grader`, `batch`, `file`, `upload`, `model`, `moderation`, `decisions`, `safety`, `content-provenance-checks` |
 | **Vector stores** | Vector stores, Vector store files, Vector store file batches | `vectorstore` |
 | **ChatKit** <sub>(Beta)</sub> | ChatKit | `chatkit` |
 | **Containers** | Containers, Container Files | `container` |
 | **Skills** | Skills | `skill` |
 | **Realtime** | Realtime Calls, Client secrets, Client events, Server events | `realtime` |
 | **Chat Completions** | Chat Completions, Streaming | `chat-completion` |
-| **Assistants** <sub>(Beta)</sub> | Assistants, Threads, Messages, Runs, Run steps, Streaming | `assistant` |
-| **Administration** | Admin API Keys, Invites, Users, Groups, Roles, Role assignments, Projects, Project users, Project groups, Project service accounts, Project API keys, Project rate limits, Audit logs, Usage, Certificates | `administration` |
+| **Administration** | Admin API Keys, Audit Logs, Certificates, Data Retention, External Keys, External Storage, Groups, Invites, Projects, Roles, Spend Alerts, Spend Limits, Usage, Users; And their nested APIs | `administration` |
 | **Legacy** | Completions | `completions` |
 
 </details>
@@ -173,7 +172,7 @@ Use `path()`, `.query()`, `.header()`, `.headers()` on the API group. Path overr
 
 For demonstration:
 ```rust
-client.
+client
   .chat()
   // override default path
   .path("/v1/messages")
@@ -225,12 +224,17 @@ These granular types are enabled when the corresponding API feature is enabled -
 
 The crate exposes the underlying `reqwest` TLS options as Cargo features. Pick exactly one; disable default features when choosing anything other than `rustls`.
 
+<details>
+<summary>TLS Feature Flags</summary>
+
 | Feature | TLS implementation | Crypto provider | Notes |
 | --- | --- | --- | --- |
 | `rustls` (default) | `rustls` + `rustls-platform-verifier` roots | `aws-lc-rs` bundled | Works out of the box. |
 | `rustls-no-provider` | `rustls` + `rustls-platform-verifier` roots | **None** — install your own | Use this to pick `ring` (or share a provider across your tree). Call e.g. `rustls::crypto::ring::default_provider().install_default().unwrap();` at the start of `main`. |
 | `native-tls` | System TLS | n/a | OpenSSL on Linux, Secure Transport on macOS, SChannel on Windows. |
 | `native-tls-vendored` | System TLS, vendored OpenSSL | n/a | Statically links a bundled OpenSSL build. |
+
+</details>
 
 ## Webhooks
 
@@ -239,6 +243,13 @@ Support for webhook includes event types, signature verification, and building w
 ## Middleware
 
 Middleware is supported via Tower ecosystem, which can be enabled with `middleware` feature. See [middleware](https://github.com/64bit/async-openai/blob/main/async-openai/MIDDLEWARE.md) for more detail.
+
+## OpenAPI
+
+The `openapi` feature provides [utoipa](https://docs.rs/utoipa/5/utoipa/) schemas
+for Chat Completions and Completions types. Enable the corresponding type features
+(`chat-completion-types` and/or `completion-types`). Other API families are not yet
+covered. See the [OpenAPI example](https://docs.rs/async-openai/latest/async_openai/#openapi).
 
 ## Contributing
 

@@ -14,7 +14,7 @@ pub const OPENAI_ORGANIZATION_HEADER: &str = "OpenAI-Organization";
 /// Project header
 pub const OPENAI_PROJECT_HEADER: &str = "OpenAI-Project";
 
-/// Calls to the Assistants API require that you pass a Beta header
+/// Header for opting into OpenAI beta API capabilities.
 pub const OPENAI_BETA_HEADER: &str = "OpenAI-Beta";
 
 /// [crate::Client] relies on this for every API call on OpenAI
@@ -318,7 +318,7 @@ mod test {
     }
 
     async fn dynamic_dispatch_compiles(client: &Client<Box<dyn Config>>) {
-        let _ = client.chat().create(CreateChatCompletionRequest {
+        drop(client.chat().create(CreateChatCompletionRequest {
             model: "gpt-4o".to_string(),
             messages: vec![ChatCompletionRequestMessage::User(
                 ChatCompletionRequestUserMessage {
@@ -327,7 +327,7 @@ mod test {
                 },
             )],
             ..Default::default()
-        });
+        }));
     }
 
     #[tokio::test]
@@ -338,10 +338,14 @@ mod test {
         let azure_client = Client::with_config(Box::new(azure_config.clone()) as Box<dyn Config>);
         let oai_client = Client::with_config(Box::new(openai_config.clone()) as Box<dyn Config>);
 
-        let _ = dynamic_dispatch_compiles(&azure_client).await;
-        let _ = dynamic_dispatch_compiles(&oai_client).await;
+        dynamic_dispatch_compiles(&azure_client).await;
+        dynamic_dispatch_compiles(&oai_client).await;
 
-        let _ = tokio::spawn(async move { dynamic_dispatch_compiles(&azure_client).await });
-        let _ = tokio::spawn(async move { dynamic_dispatch_compiles(&oai_client).await });
+        tokio::spawn(async move { dynamic_dispatch_compiles(&azure_client).await })
+            .await
+            .unwrap();
+        tokio::spawn(async move { dynamic_dispatch_compiles(&oai_client).await })
+            .await
+            .unwrap();
     }
 }

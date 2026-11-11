@@ -5,21 +5,22 @@ use utoipa::ToSchema;
 use crate::{
     error::OpenAIError,
     types::responses::{
-        AnyItemReference, ApplyPatchToolCall, ApplyPatchToolCallOutput, CodeInterpreterToolCall,
-        CompactionBody, ComputerToolCall, ComputerToolCallOutputResource, CustomToolCall,
-        CustomToolCallOutput, FileSearchToolCall, FunctionShellCall, FunctionShellCallOutput,
-        FunctionToolCallOutputResource, FunctionToolCallResource, ImageGenToolCall,
-        InputFileContent, InputImageContent, InputItem, InputTextContent, LocalShellToolCall,
-        LocalShellToolCallOutput, MCPApprovalRequest, MCPApprovalResponse, MCPListTools,
-        MCPToolCall, MessagePhase, OutputTextContent, ReasoningItem, ReasoningTextContent,
-        RefusalContent, ToolSearchCall, ToolSearchOutput, WebSearchToolCall,
+        AdditionalTools, AnyItemReference, ApplyPatchToolCall, ApplyPatchToolCallOutput,
+        CodeInterpreterToolCall, CompactionBody, ComputerToolCall, ComputerToolCallOutputResource,
+        CustomToolCall, CustomToolCallOutput, FileSearchToolCall, FunctionShellCall,
+        FunctionShellCallOutput, FunctionToolCallOutputResource, FunctionToolCallResource,
+        ImageGenToolCall, InputFileContent, InputImageContent, InputItem, InputTextContent,
+        LocalShellToolCall, LocalShellToolCallOutput, MCPApprovalRequest, MCPApprovalResponse,
+        MCPListTools, MCPToolCall, MessagePhase, OutputTextContent, Program, ProgramOutput,
+        ReasoningItem, ReasoningTextContent, RefusalContent, ResponseConfigurationUpdate,
+        ToolSearchCall, ToolSearchOutput, WebSearchToolCall,
     },
 };
 
 use crate::types::Metadata;
 
 /// Represents a conversation object.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 pub struct ConversationResource {
     /// The unique ID of the conversation.
     pub id: String,
@@ -62,7 +63,7 @@ pub struct UpdateConversationRequest {
 }
 
 /// Represents a deleted conversation.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 pub struct DeleteConversationResponse {
     /// The unique ID of the deleted conversation.
     pub id: String,
@@ -85,7 +86,7 @@ pub struct CreateConversationItemsRequest {
 }
 
 /// A list of Conversation items.
-#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, ToSchema)]
+#[derive(Clone, Serialize, Debug, Deserialize, PartialEq, Default, ToSchema)]
 pub struct ConversationItemList {
     /// The type of object returned, must be `list`.
     pub object: String,
@@ -120,18 +121,18 @@ pub enum MessageRole {
     Tool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, ToSchema)]
 pub struct TextContent {
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, ToSchema)]
 pub struct SummaryTextContent {
     /// A summary of the reasoning output from the model so far.
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, ToSchema)]
 pub struct ComputerScreenContent {
     /// The URL of the screenshot image.
     pub image_url: Option<String>,
@@ -184,7 +185,11 @@ pub enum ConversationItem {
     ComputerCallOutput(ComputerToolCallOutputResource),
     ToolSearchCall(ToolSearchCall),
     ToolSearchOutput(ToolSearchOutput),
+    AdditionalTools(AdditionalTools),
+    ConfigurationUpdate(ResponseConfigurationUpdate),
     Reasoning(ReasoningItem),
+    Program(Program),
+    ProgramOutput(ProgramOutput),
     Compaction(CompactionBody),
     CodeInterpreterCall(CodeInterpreterToolCall),
     LocalShellCall(LocalShellToolCall),

@@ -102,6 +102,14 @@ impl From<EmbeddingVector> for String {
     }
 }
 
+/// An empty float vector, so `Embedding` can derive `Default`. Float is the default
+/// `encoding_format`.
+impl Default for EmbeddingVector {
+    fn default() -> Self {
+        EmbeddingVector::Float(Vec::new())
+    }
+}
+
 impl EmbeddingVector {
     pub fn is_empty(&self) -> bool {
         match self {
@@ -127,18 +135,20 @@ impl EmbeddingVector {
 }
 
 /// Represents an embedding vector returned by embedding endpoint.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, utoipa::ToSchema)]
 pub struct Embedding {
     /// The index of the embedding in the list of embeddings.
     pub index: u32,
     /// The object type, which is always "embedding".
     pub object: String,
-    /// The embedding vector, which is a list of floats. The length of vector
-    /// depends on the model as listed in the [embedding guide](https://platform.openai.com/docs/guides/embeddings).
+    /// The embedding vector, returned as a list of floats when `encoding_format` is `float` (the default),
+    /// or as a base64-encoded string when `encoding_format` is `base64`. The length of the vector depends
+    /// on the model as listed in the [embedding
+    /// guide](https://developers.openai.com/api/docs/guides/embeddings).
     pub embedding: EmbeddingVector,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default, utoipa::ToSchema)]
 pub struct EmbeddingUsage {
     /// The number of tokens used by the prompt.
     pub prompt_tokens: u32,
@@ -146,7 +156,7 @@ pub struct EmbeddingUsage {
     pub total_tokens: u32,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize, Default, utoipa::ToSchema)]
 pub struct CreateEmbeddingResponse {
     pub object: String,
     /// The name of the model used to generate the embedding.

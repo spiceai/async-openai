@@ -79,7 +79,7 @@ pub struct Upload {
     /// The object type, which is always "upload"
     pub object: String,
 
-    /// The ready File object after the Upload is completed
+    /// The ready File object after the Upload is completed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<OpenAIFile>,
 }
@@ -99,7 +99,7 @@ pub enum UploadStatus {
 }
 
 /// The upload Part represents a chunk of bytes we can add to an Upload object.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct UploadPart {
     /// The upload Part unique identifier, which can be referenced in API endpoints
     pub id: String,
@@ -115,14 +115,14 @@ pub struct UploadPart {
 }
 
 /// Request parameters for adding a part to an Upload
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AddUploadPartRequest {
     /// The chunk of bytes for this Part
     pub data: InputSource,
 }
 
 /// Request parameters for completing an Upload
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct CompleteUploadRequest {
     /// The ordered list of Part IDs
     pub part_ids: Vec<String>,

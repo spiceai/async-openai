@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use bytes::Bytes;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -7,7 +8,7 @@ use crate::types::audio::{LogProbProperties, TranscriptTextUsageDuration, Transc
 use crate::types::InputSource;
 
 /// A custom voice reference, identified by its voice ID.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct CustomVoiceRef {
     /// The custom voice ID, e.g. `voice_1234`.
     pub id: String,
@@ -83,10 +84,13 @@ pub enum SpeechResponseFormat {
 pub enum SpeechModel {
     #[default]
     #[serde(rename = "tts-1")]
+    #[deprecated(note = "This speech model shuts down on January 6, 2027. Migrate to Realtime.")]
     Tts1,
     #[serde(rename = "tts-1-hd")]
+    #[deprecated(note = "This speech model shuts down on January 6, 2027. Migrate to Realtime.")]
     Tts1Hd,
     #[serde(rename = "gpt-4o-mini-tts")]
+    #[deprecated(note = "This speech model shuts down on January 6, 2027. Migrate to Realtime.")]
     Gpt4oMiniTts,
     #[serde(untagged)]
     Other(String),
@@ -107,12 +111,15 @@ pub enum TimestampGranularity {
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
 pub struct CreateTranscriptionRequest {
-    /// The audio file object (not file name) to transcribe, in one of these formats:
-    /// flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, or webm.
+    /// The audio file object (not file name) to transcribe, in one of these formats: flac, mp3, mp4, mpeg,
+    /// mpga, m4a, ogg, wav, or webm.
+    /// The request must include enough format metadata for the file to be identified. We recommend an
+    /// extension-bearing filename and an appropriate content type.
     pub file: AudioInput,
 
-    /// ID of the model to use. The options are `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`
-    /// (which is powered by our open source Whisper V2 model), and `gpt-4o-transcribe-diarize`.
+    /// ID of the model to use. The options are `gpt-transcribe`, `gpt-4o-transcribe`, `gpt-4o-mini-
+    /// transcribe`, `gpt-4o-mini-transcribe-2025-12-15`, `whisper-1` (which is powered by our open source
+    /// Whisper V2 model), and `gpt-4o-transcribe-diarize`.
     pub model: String,
 
     /// The language of the input audio. Supplying the input language in
@@ -176,6 +183,13 @@ pub struct CreateTranscriptionRequest {
     /// known speaker references matching `known_speaker_names[]`. Each sample must be between 2 and 10
     /// seconds, and can use any of the same input audio formats supported by `file`.
     pub known_speaker_references: Option<Vec<String>>,
+    /// Possible languages of the input audio, in
+    /// [ISO-639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) format. Supported by `gpt-
+    /// transcribe`.
+    pub languages: Option<Vec<String>>,
+
+    /// Words or phrases to guide transcription of the input audio. Supported by `gpt-transcribe`.
+    pub keywords: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
@@ -233,6 +247,10 @@ pub struct CreateTranscriptionResponseJson {
 
     /// Token usage statistics for the request.
     pub usage: TranscriptionUsage,
+    /// The languages detected in the audio. Returned by `gpt-transcribe`. An empty array indicates that no
+    /// language could be reliably detected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub languages: Option<Vec<crate::types::audio::TranscriptionLanguage>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -261,7 +279,7 @@ pub struct CreateTranscriptionResponseDiarizedJson {
 
 /// Represents a verbose json transcription response returned by model, based on
 /// the provided input.
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct CreateTranscriptionResponseVerboseJson {
     /// The language of the input audio.
     pub language: String,
@@ -284,7 +302,7 @@ pub struct CreateTranscriptionResponseVerboseJson {
     pub usage: TranscriptTextUsageDuration,
 }
 
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct TranscriptionWord {
     /// The text content of the word.
     pub word: String,
@@ -325,7 +343,7 @@ pub struct TranscriptionDiarizedSegment {
     pub speaker: String,
 }
 
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct TranscriptionSegment {
     /// Unique identifier of the segment.
     pub id: u32,
@@ -375,10 +393,12 @@ pub struct CreateSpeechRequest {
     /// `tts-1-hd` or `gpt-4o-mini-tts`.
     pub model: SpeechModel,
 
-    /// The voice to use when generating the audio. Supported built-in voices are `alloy`, `ash`,
-    /// `ballad`, `coral`, `echo`, `fable`, `onyx`, `nova`, `sage`, `shimmer`, `verse`, `marin`, and
-    /// `cedar`. Previews of the voices are available in the [Text to speech
-    /// guide](https://platform.openai.com/docs/guides/text-to-speech#voice-options).
+    /// The voice to use when generating the audio. Supported built-in voices are `alloy`, `ash`, `ballad`,
+    /// `coral`, `echo`, `fable`, `onyx`, `nova`, `sage`, `shimmer`, `verse`, `marin`, and `cedar`. You may
+    /// also provide a custom voice object with an `id`, for example `{ "id": "voice_1234" }`. Previews of
+    /// the voices are available in the [Text to speech
+    /// guide](https://developers.openai.com/api/docs/guides/text-to-speech#voice-options). Custom voices
+    /// must be created from audio samples. Voices created from text prompts are supported only in Live.
     pub voice: Voice,
 
     /// Control the voice of your generated audio with additional instructions.
@@ -416,9 +436,11 @@ pub enum StreamFormat {
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
+#[deprecated(note = "Audio translations and whisper-1 shut down on February 26, 2027.")]
 pub struct CreateTranslationRequest {
-    /// The audio file object (not file name) translate, in one of these
-    /// formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, or webm.
+    /// The audio file object (not file name) translate, in one of these formats: flac, mp3, mp4, mpeg,
+    /// mpga, m4a, ogg, wav, or webm. The request must include enough format metadata for the file to be
+    /// identified. We recommend an extension-bearing filename and an appropriate content type.
     pub file: AudioInput,
 
     /// ID of the model to use. Only `whisper-1` (which is powered by our open
@@ -436,12 +458,12 @@ pub struct CreateTranslationRequest {
     pub temperature: Option<f32>, // default: 0
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Serialize, Default)]
 pub struct CreateTranslationResponseJson {
     pub text: String,
 }
 
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct CreateTranslationResponseVerboseJson {
     /// The language of the output translation (always `english`).
     pub language: String,
@@ -454,13 +476,13 @@ pub struct CreateTranslationResponseVerboseJson {
     pub segments: Option<Vec<TranscriptionSegment>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CreateSpeechResponse {
     pub bytes: Bytes,
 }
 
 /// A consent recording used to authorize creation of a custom voice.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct VoiceConsentResource {
     /// The object type, which is always `audio.voice_consent`.
     pub object: String,
@@ -505,7 +527,7 @@ pub struct UpdateVoiceConsentRequest {
 }
 
 /// The voice consent deletion object.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct VoiceConsentDeletedResource {
     /// The consent recording identifier.
     pub id: String,
@@ -516,7 +538,7 @@ pub struct VoiceConsentDeletedResource {
 }
 
 /// The voice consent list object.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct VoiceConsentListResource {
     /// The object type, which is always `list`.
     pub object: String,
@@ -543,16 +565,24 @@ pub struct VoiceResource {
     pub name: String,
     /// The Unix timestamp (in seconds) for when the voice was created.
     pub created_at: u64,
+
+    /// How the voice was created.
+    pub r#type: VoiceType,
+
+    /// The original text prompt used to create the voice. Present for prompt-generated voices with a stored
+    /// prompt; omitted for audio-sample voices and older voices without a stored prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
 }
 
 /// Request to create a custom voice.
 #[derive(Clone, Default, Debug, Builder, PartialEq)]
-#[builder(name = "CreateVoiceRequestArgs")]
+#[builder(name = "CreateVoiceFromConsentRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option), default)]
 #[builder(derive(Debug))]
 #[builder(build_fn(error = "OpenAIError"))]
-pub struct CreateVoiceRequest {
+pub struct CreateVoiceFromConsentRequest {
     /// The name of the new voice.
     pub name: String,
     /// The sample audio recording file. Maximum size is 10 MiB.
@@ -561,4 +591,59 @@ pub struct CreateVoiceRequest {
     pub audio_sample: AudioInput,
     /// The consent recording ID (for example, `cons_1234`).
     pub consent: String,
+}
+
+/// The method used to create a custom voice.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum VoiceType {
+    AudioSample,
+    Prompt,
+}
+
+/// Multipart request to create a voice from a consent recording or a text description.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CreateVoiceRequest {
+    AudioSample(CreateVoiceFromConsentRequest),
+    Prompt(CreateVoicePromptRequest),
+}
+
+/// Create a synthetic voice from a text description. Prompt voices are supported only in Live.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder, PartialEq)]
+#[builder(
+    name = "CreateVoicePromptRequestArgs",
+    pattern = "mutable",
+    setter(into, strip_option),
+    default
+)]
+#[builder(build_fn(error = "OpenAIError"))]
+pub struct CreateVoicePromptRequest {
+    /// The name of the new voice (1–256 characters).
+    pub name: String,
+    /// A nonblank description of the desired voice (1–2000 characters).
+    pub prompt: String,
+    /// Optional text for the voice to speak during creation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub script_hint: Option<String>,
+    /// Voice creation model. Defaults to auto; 2026-10-08 is also supported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct VoiceDeletedResource {
+    pub id: String,
+    pub object: String,
+    pub deleted: bool,
+}
+
+impl From<CreateVoiceFromConsentRequest> for CreateVoiceRequest {
+    fn from(value: CreateVoiceFromConsentRequest) -> Self {
+        Self::AudioSample(value)
+    }
+}
+impl From<CreateVoicePromptRequest> for CreateVoiceRequest {
+    fn from(value: CreateVoicePromptRequest) -> Self {
+        Self::Prompt(value)
+    }
 }

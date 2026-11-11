@@ -10,7 +10,7 @@ pub enum OrganizationRole {
 }
 
 /// Details about a role that can be assigned through the public Roles API.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct Role {
     /// The object type, which is always `role`.
     pub object: String,
@@ -29,7 +29,7 @@ pub struct Role {
 }
 
 /// Paginated list of roles available on an organization or project.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct PublicRoleListResource {
     /// The object type, which is always `list`.
     pub object: String,
@@ -42,7 +42,7 @@ pub struct PublicRoleListResource {
 }
 
 /// Request payload for creating a custom role.
-#[derive(Debug, Serialize, Deserialize, Builder, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Builder, Clone, PartialEq, Default)]
 #[builder(name = "CreateOrganizationRoleRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option))]
@@ -59,7 +59,7 @@ pub struct PublicCreateOrganizationRoleBody {
 }
 
 /// Request payload for updating an existing role.
-#[derive(Debug, Serialize, Deserialize, Builder, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Builder, Clone, PartialEq, Default)]
 #[builder(name = "UpdateOrganizationRoleRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option))]
@@ -78,7 +78,7 @@ pub struct PublicUpdateOrganizationRoleBody {
 }
 
 /// Confirmation payload returned after deleting a role.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct RoleDeletedResource {
     /// The object type, which is always `role.deleted`.
     pub object: String,
@@ -89,7 +89,7 @@ pub struct RoleDeletedResource {
 }
 
 /// Detailed information about a role assignment entry returned when listing assignments.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct AssignedRoleDetails {
     /// Identifier for the role.
     pub id: String,
@@ -115,10 +115,13 @@ pub struct AssignedRoleDetails {
     /// Arbitrary metadata stored on the role.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
+    /// Principals from which the role assignment is inherited, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignment_sources: Option<Vec<AssignedRoleDetailsAssignmentSourcesItem>>,
 }
 
 /// Paginated list of roles assigned to a principal.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct RoleListResource {
     /// The object type, which is always `list`.
     pub object: String,
@@ -131,10 +134,16 @@ pub struct RoleListResource {
 }
 
 /// Confirmation payload returned after unassigning a role.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct DeletedRoleAssignmentResource {
     /// Identifier for the deleted assignment, such as `group.role.deleted` or `user.role.deleted`.
     pub object: String,
     /// Whether the assignment was removed.
     pub deleted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct AssignedRoleDetailsAssignmentSourcesItem {
+    pub principal_id: String,
+    pub principal_type: String,
 }

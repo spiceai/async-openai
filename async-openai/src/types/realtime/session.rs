@@ -23,10 +23,10 @@ pub struct AudioTranscription {
     /// [ISO-639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) (e.g. `en`) format will improve accuracy and latency.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
-    /// The model to use for transcription. Current options are `whisper-1`,
-    /// `gpt-4o-mini-transcribe`, `gpt-4o-mini-transcribe-2025-12-15`, `gpt-4o-transcribe`,
-    /// `gpt-4o-transcribe-diarize`, and `gpt-realtime-whisper`.
-    /// Use `gpt-4o-transcribe-diarize` when you need diarization with speaker labels.
+    /// The model to use for transcription. Current options are `whisper-1`, `gpt-transcribe`, `gpt-live-
+    /// transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-mini-transcribe-2025-12-15`, `gpt-4o-transcribe`,
+    /// `gpt-4o-transcribe-diarize`, and `gpt-realtime-whisper`. Use `gpt-4o-transcribe-diarize` when you
+    /// need diarization with speaker labels.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// An optional text to guide the model's style or continue a previous audio segment.
@@ -41,6 +41,16 @@ pub struct AudioTranscription {
     /// Only supported with `gpt-realtime-whisper` in GA Realtime sessions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delay: Option<AudioTranscriptionDelay>,
+    /// Possible languages of the input audio, in
+    /// [ISO-639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) format. Supported by `gpt-
+    /// transcribe` and `gpt-live-transcribe`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub languages: Option<Vec<String>>,
+
+    /// Words or phrases to guide transcription of the input audio. Supported by `gpt-transcribe` and `gpt-
+    /// live-transcribe`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keywords: Option<Vec<String>>,
 }
 
 /// Configuration of the transcription model returned by the server.
@@ -49,12 +59,21 @@ pub struct AudioTranscriptionResponse {
     /// The language of the input audio.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
-    /// The model used for transcription.
+    /// The model used for transcription. Current options are `whisper-1`, `gpt-transcribe`, `gpt-live-
+    /// transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-mini-transcribe-2025-12-15`, `gpt-4o-transcribe`,
+    /// `gpt-4o-transcribe-diarize`, and `gpt-realtime-whisper`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// The prompt configured for input audio transcription, when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
+    /// The possible input audio languages configured for transcription, in
+    /// [ISO-639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) format.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub languages: Option<Vec<String>>,
+    /// Words or phrases configured to guide transcription of the input audio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keywords: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -139,7 +158,7 @@ pub enum MaxOutputTokens {
     Num(u16),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RealtimeFunctionTool {
     /// The name of the function.
     pub name: String,
@@ -228,7 +247,7 @@ pub struct AudioInput {
     /// and the model. Filtering the audio can improve VAD and turn detection accuracy
     /// (reducing false positives) and model performance by improving perception of the
     /// input audio.
-    pub noise_reduction: Option<NoiseReductionType>,
+    pub noise_reduction: Option<RealtimeNoiseReduction>,
     /// Configuration for input audio transcription, defaults to off and can be set to `null` to turn off once on.
     /// Input audio transcription is not native to the model, since the model consumes audio directly.
     /// Transcription runs asynchronously through [the /audio/transcriptions endpoint](https://platform.openai.com/docs/api-reference/audio/createTranscription)
@@ -287,7 +306,7 @@ pub enum Tracing {
     Configuration(TracingConfiguration),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TracingConfiguration {
     /// The group id to attach to this trace to enable filtering and grouping in the Traces Dashboard.
     pub group_id: String,
@@ -314,7 +333,7 @@ pub enum RealtimeTruncation {
     RetentionRatio(RetentionRatioTruncation),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RetentionRatioTruncation {
     /// Fraction of post-instruction conversation tokens to retain (0.0 - 1.0) when the conversation
     ///  exceeds the input token limit. Setting this to 0.8 means that messages will be dropped
@@ -331,7 +350,7 @@ pub struct RetentionRatioTruncation {
     pub token_limits: Option<TokenLimits>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TokenLimits {
     /// Maximum tokens allowed in the conversation after instructions (which including tool
     /// definitions). For example, setting this to 5,000 would mean that truncation would occur
@@ -351,7 +370,7 @@ pub enum Session {
     RealtimeSession(Box<RealtimeSession>),
     /// The type of session to create. Always `transcription` for transcription sessions.
     #[serde(rename = "transcription")]
-    RealtimeTranscriptionSession(RealtimeTranscriptionSession),
+    RealtimeTranscriptionSession(Box<RealtimeTranscriptionSession>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -510,4 +529,17 @@ pub struct RealtimeTranscriptionSession {
     /// `item.input_audio_transcription.logprobs`: Include logprobs for input audio transcription.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include: Option<Vec<String>>,
+}
+
+/// Input noise suppression strength. Higher values apply more suppression.
+/// Defaults to 1 when noise reduction is first enabled. Omitting strength
+/// from a session update preserves the current strength.
+pub type RealtimeNoiseReductionStrength = f64;
+
+/// Input noise suppression settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RealtimeNoiseReduction {
+    pub r#type: NoiseReductionType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strength: Option<RealtimeNoiseReductionStrength>,
 }
