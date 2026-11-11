@@ -1242,7 +1242,10 @@ mod stream_delta_reasoning_tests {
         assert_eq!(delta.reasoning_content.as_deref(), Some("The user wants"));
         assert_eq!(delta.content, None);
         let json = serde_json::to_string(&delta).expect("serializes");
-        assert!(json.contains(r#""reasoning_content":"The user wants""#), "{json}");
+        assert!(
+            json.contains(r#""reasoning_content":"The user wants""#),
+            "{json}"
+        );
     }
 }
 
