@@ -1067,7 +1067,7 @@ pub struct CreateResponse {
     ///
     /// When the `service_tier` parameter is set, the response body will include the `service_tier` value based on the processing mode actually used to serve the request. This response value may be different from the value set in the parameter.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub service_tier: Option<ServiceTier>,
+    pub service_tier: Option<ServiceTierResponses>,
 
     /// Whether to store the generated model response for later retrieval via API.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1187,25 +1187,11 @@ pub struct Prompt {
     pub variables: Option<ResponsePromptVariables>,
 }
 
-/// The processing tier a request asks for.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum ServiceTier {
-    #[default]
-    Auto,
-    Default,
-    Flex,
-    Scale,
-    Priority,
-    // Closed on purpose: a request names only the tiers above, so a tier upstream's spec
-    // adds (`fast`, `ultrafast`) is refused. Replies accept any tier via `ServiceTierResponse`.
-}
-
 /// The processing tier a response reports it was served on.
 ///
 /// The server adds tiers on its side and reports whichever one served the request, so a tier
 /// this type does not name deserializes to [`ServiceTierResponse::Other`] and serializes back
-/// unchanged. Requests keep the closed [`ServiceTier`].
+/// unchanged. Requests keep the closed [`ServiceTierResponses`].
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceTierResponse {

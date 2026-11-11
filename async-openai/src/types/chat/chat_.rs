@@ -807,8 +807,7 @@ pub enum ServiceTier {
     Flex,
     Scale,
     Priority,
-    // Closed on purpose: a request names only the tiers above, so a tier upstream's spec
-    // adds (`fast`) is refused. Replies accept any tier via `ServiceTierResponse`.
+    Fast,
 }
 
 /// The processing tier a response reports it was served on.

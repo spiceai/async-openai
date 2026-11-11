@@ -17,7 +17,7 @@ fn easy_input_message_type_defaults_when_missing() {
 
 mod service_tier {
     use async_openai::types::responses::{
-        CreateResponse, Response, ServiceTier, ServiceTierResponse,
+        CreateResponse, Response, ServiceTierResponse, ServiceTierResponses,
     };
     use serde_json::{json, Value};
     use utoipa::PartialSchema;
@@ -62,9 +62,18 @@ mod service_tier {
                 "service_tier": tier
             })
         };
-        let named: CreateResponse = serde_json::from_value(request("priority")).unwrap();
-        assert_eq!(named.service_tier, Some(ServiceTier::Priority));
-        serde_json::from_value::<CreateResponse>(request("fast")).unwrap_err();
+        for (name, tier) in [
+            ("priority", ServiceTierResponses::Priority),
+            ("fast", ServiceTierResponses::Fast),
+            ("ultrafast", ServiceTierResponses::Ultrafast),
+        ] {
+            let named: CreateResponse = serde_json::from_value(request(name)).unwrap();
+            assert_eq!(named.service_tier, Some(tier), "{name}");
+        }
+        let error = serde_json::from_value::<CreateResponse>(request("turbo"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("unknown variant `turbo`"), "{error}");
     }
 
     #[test]
