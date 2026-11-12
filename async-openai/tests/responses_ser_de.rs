@@ -111,7 +111,8 @@ mod service_tier {
 /// an `Other(String)` fallback as an object.
 mod schemas_accept_what_serde_accepts {
     use async_openai::types::responses::{
-        CompoundType, InputItem, Reasoning, ReasoningModeEnum, ResponseError, ResponseErrorCode,
+        CompoundType, InputItem, MisalignmentErrorType, Reasoning, ReasoningModeEnum,
+        ResponseError, ResponseErrorCode,
     };
     use serde::de::DeserializeOwned;
     use serde_json::{json, Value};
@@ -193,6 +194,39 @@ mod schemas_accept_what_serde_accepts {
     }
 
     #[test]
+    fn a_misalignment_classification_the_enum_does_not_name_validates() {
+        let error = |error_type: Value| {
+            json!({
+                "code": "misalignment_policy_violation",
+                "message": "blocked",
+                "misalignment": {"error_type": error_type},
+            })
+        };
+        let classified = |expected: MisalignmentErrorType| {
+            move |error: &ResponseError| {
+                error
+                    .misalignment
+                    .as_ref()
+                    .and_then(|misalignment| misalignment.error_type.as_ref())
+                    == Some(&expected)
+            }
+        };
+        assert_accepted(
+            error(json!("potentially_unintended_data_transfer")),
+            classified(MisalignmentErrorType::PotentiallyUnintendedDataTransfer),
+        );
+        assert_accepted(
+            error(json!("a_new_classification")),
+            classified(MisalignmentErrorType::String(
+                "a_new_classification".to_string(),
+            )),
+        );
+        let not_a_string = error(json!(1));
+        serde_json::from_value::<ResponseError>(not_a_string.clone()).unwrap_err();
+        assert!(!validator::<ResponseError>().is_valid(&not_a_string));
+    }
+
+    #[test]
     fn a_reasoning_mode_the_enum_does_not_name_validates() {
         assert_accepted(json!({"mode": "pro"}), |reasoning: &Reasoning| {
             reasoning.mode == Some(ReasoningModeEnum::Pro)
@@ -225,5 +259,15 @@ mod schemas_accept_what_serde_accepts {
             assert!(!matches!(parsed, ResponseErrorCode::Other(_)), "{code}");
         }
         assert_eq!(listed::<ReasoningModeEnum>(), ["pro", "standard"]);
+        let classifications = listed::<MisalignmentErrorType>();
+        assert_eq!(classifications.len(), 4, "{classifications:?}");
+        for classification in classifications {
+            let parsed: MisalignmentErrorType =
+                serde_json::from_value(json!(classification)).unwrap();
+            assert!(
+                !matches!(parsed, MisalignmentErrorType::String(_)),
+                "{classification}"
+            );
+        }
     }
 }

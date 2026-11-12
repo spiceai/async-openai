@@ -108,6 +108,9 @@ pub use moderation::*;
 mod misalignment;
 pub use misalignment::*;
 
+// This fork's hand-written schemas for open enums, which utoipa 6 cannot derive.
+pub(crate) mod open_string_enum;
+
 #[cfg(feature = "administration-types")]
 mod spend_alerts;
 #[cfg(feature = "administration-types")]

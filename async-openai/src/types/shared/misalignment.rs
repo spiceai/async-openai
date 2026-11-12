@@ -16,7 +16,7 @@ pub struct MisalignmentErrorDetailsResource {
     pub review_target: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum MisalignmentErrorType {
     PotentiallyUnintendedDataTransfer,
@@ -26,6 +26,19 @@ pub enum MisalignmentErrorType {
     #[serde(untagged)]
     String(String),
 }
+
+impl utoipa::PartialSchema for MisalignmentErrorType {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        crate::types::shared::open_string_enum::open_string_enum_schema(&[
+            "potentially_unintended_data_transfer",
+            "potentially_unintended_data_access",
+            "potentially_unintended_destructive_activity",
+            "other",
+        ])
+    }
+}
+
+impl utoipa::ToSchema for MisalignmentErrorType {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, utoipa::ToSchema)]
 pub struct MisalignmentSteer {
