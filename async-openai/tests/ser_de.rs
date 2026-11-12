@@ -185,10 +185,17 @@ mod service_tier {
                 "service_tier": tier
             })
         };
-        let named: CreateChatCompletionRequest =
-            serde_json::from_value(request("priority")).unwrap();
-        assert_eq!(named.service_tier, Some(ServiceTier::Priority));
-        serde_json::from_value::<CreateChatCompletionRequest>(request("fast")).unwrap_err();
+        for (name, tier) in [
+            ("priority", ServiceTier::Priority),
+            ("fast", ServiceTier::Fast),
+        ] {
+            let named: CreateChatCompletionRequest = serde_json::from_value(request(name)).unwrap();
+            assert_eq!(named.service_tier, Some(tier), "{name}");
+        }
+        let error = serde_json::from_value::<CreateChatCompletionRequest>(request("turbo"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("unknown variant `turbo`"), "{error}");
     }
 
     #[test]

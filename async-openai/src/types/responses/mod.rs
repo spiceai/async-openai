@@ -27,3 +27,16 @@ pub use crate::types::shared::ReasoningEffort;
 pub use crate::types::shared::ResponseFormat;
 pub use crate::types::shared::ResponseFormatJsonSchema;
 pub use crate::types::shared::ResponseUsage;
+
+pub use crate::types::shared::{
+    MisalignmentErrorDetailsResource, MisalignmentErrorType, MisalignmentSteer,
+    ModerationConfigParam, ModerationInputType, ModerationMode, ModerationParam,
+    ModerationPolicyParam, ModerationResultBody, PromptCacheModeEnum, PromptCacheOptionsParam,
+    PromptCacheTTLEnum,
+};
+
+pub mod websocket;
+
+pub use crate::types::shared::MessagePhase;
+pub use crate::types::shared::PromptCacheBreakpointTTLEnum;
+pub use crate::types::shared::{ImageGenInputUsageDetails, ImageGenOutputTokensDetails};

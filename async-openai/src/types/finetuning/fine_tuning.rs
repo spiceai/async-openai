@@ -151,12 +151,12 @@ pub enum FineTuneMethod {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct FineTuneSupervisedMethod {
     pub hyperparameters: FineTuneSupervisedHyperparameters,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct FineTuneDPOMethod {
     pub hyperparameters: FineTuneDPOHyperparameters,
 }
@@ -208,7 +208,7 @@ pub enum EvalSamples {
     EvalSamples(u32),
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct FineTuneReinforcementHyperparameters {
     /// Number of examples in each batch. A larger batch size means that model parameters
     /// are updated less frequently, but with lower variance.
@@ -241,7 +241,7 @@ pub enum FineTuningJobIntegrationType {
     Wandb,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct FineTuningIntegration {
     /// The type of integration to enable. Currently, only "wandb" (Weights and Biases) is supported.
     pub r#type: FineTuningJobIntegrationType,
@@ -252,7 +252,7 @@ pub struct FineTuningIntegration {
     pub wandb: WandB,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct WandB {
     /// The name of the project that the new run will be created under.
     pub project: String,
@@ -270,7 +270,7 @@ pub struct WandB {
 }
 
 /// For fine-tuning jobs that have `failed`, this will contain more information on the cause of the failure.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct FineTuneJobError {
     ///  A machine-readable error code.
     pub code: String,
@@ -290,9 +290,11 @@ pub enum FineTuningJobStatus {
     Succeeded,
     Failed,
     Cancelled,
+    Pausing,
+    Paused,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
 pub struct Hyperparameters {
     pub batch_size: BatchSize,
     pub learning_rate_multiplier: LearningRateMultiplier,
@@ -317,7 +319,7 @@ pub struct FineTuningJob {
 
     /// The hyperparameters used for the fine-tuning job. This value will only be returned when running
     /// `supervised` jobs.
-    pub hyperparameters: Hyperparameters,
+    pub hyperparameters: Option<Hyperparameters>,
 
     ///  The base model that is being fine-tuned.
     pub model: String,
@@ -331,8 +333,8 @@ pub struct FineTuningJob {
     /// You can retrieve the results with the [Files API](https://platform.openai.com/docs/api-reference/files/retrieve-contents).
     pub result_files: Vec<String>,
 
-    /// The current status of the fine-tuning job, which can be either
-    /// `validating_files`, `queued`, `running`, `succeeded`, `failed`, or `cancelled`.
+    /// The current status of the fine-tuning job, which can be `validating_files`, `queued`, `running`,
+    /// `pausing`, `paused`, `succeeded`, `failed`, or `cancelled`.
     pub status: FineTuningJobStatus,
 
     /// The total number of billable tokens processed by this fine-tuning job. The value will be null if the fine-tuning job is still running.
@@ -348,7 +350,7 @@ pub struct FineTuningJob {
     pub integrations: Option<Vec<FineTuningIntegration>>, // maxItems: 5
 
     /// The seed used for the fine-tuning job.
-    pub seed: u32,
+    pub seed: Option<u32>,
 
     /// The Unix timestamp (in seconds) for when the fine-tuning job is estimated to finish. The value will be null if the fine-tuning job is not running.
     pub estimated_finish: Option<u32>,
@@ -358,20 +360,20 @@ pub struct FineTuningJob {
     pub metadata: Option<Metadata>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct ListPaginatedFineTuningJobsResponse {
     pub data: Vec<FineTuningJob>,
     pub has_more: bool,
     pub object: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct ListFineTuningJobEventsResponse {
     pub data: Vec<FineTuningJobEvent>,
     pub object: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct ListFineTuningJobCheckpointsResponse {
     pub data: Vec<FineTuningJobCheckpoint>,
     pub object: String,
@@ -415,7 +417,7 @@ pub enum FineTuningJobEventType {
 }
 
 /// The `fine_tuning.job.checkpoint` object represents a model checkpoint for a fine-tuning job that is ready to use.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct FineTuningJobCheckpoint {
     /// The checkpoint identifier, which can be referenced in the API endpoints.
     pub id: String,
@@ -433,7 +435,7 @@ pub struct FineTuningJobCheckpoint {
     pub object: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct FineTuningJobCheckpointMetrics {
     pub step: u32,
     pub train_loss: f32,
@@ -444,13 +446,13 @@ pub struct FineTuningJobCheckpointMetrics {
     pub full_valid_mean_token_accuracy: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct CreateFineTuningCheckpointPermissionRequest {
     /// The project identifiers to grant access to.
     pub project_ids: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct ListFineTuningCheckpointPermissionResponse {
     pub data: Vec<FineTuningCheckpointPermission>,
     pub object: String,
@@ -460,7 +462,7 @@ pub struct ListFineTuningCheckpointPermissionResponse {
 }
 
 /// The `checkpoint.permission` object represents a permission for a fine-tuned model checkpoint.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct FineTuningCheckpointPermission {
     /// The permission identifier, which can be referenced in the API endpoints.
     pub id: String,
@@ -472,7 +474,7 @@ pub struct FineTuningCheckpointPermission {
     pub object: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct DeleteFineTuningCheckpointPermissionResponse {
     pub object: String,
     pub id: String,

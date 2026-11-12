@@ -5,13 +5,13 @@ use crate::types::images::{
 };
 
 /// Emitted when a partial image is available during image generation streaming.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ImageGenPartialImageEvent {
     /// Base64-encoded partial image data, suitable for rendering as an image.
     pub b64_json: String,
     /// The Unix timestamp when the event was created.
     pub created_at: u64,
-    /// The size of the requested image.
+    /// The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
     pub size: ImageSize,
     /// The quality setting for the requested image.
     pub quality: ImageQuality,
@@ -24,13 +24,13 @@ pub struct ImageGenPartialImageEvent {
 }
 
 /// Emitted when image generation has completed and the final image is available.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ImageGenCompletedEvent {
     /// Base64-encoded image data, suitable for rendering as an image.
     pub b64_json: String,
     /// The Unix timestamp when the event was created.
     pub created_at: u64,
-    /// The size of the generated image.
+    /// The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
     pub size: ImageSize,
     /// The quality setting for the generated image.
     pub quality: ImageQuality,
@@ -40,6 +40,12 @@ pub struct ImageGenCompletedEvent {
     pub output_format: ImageOutputFormat,
     /// Token usage information for the image generation.
     pub usage: ImageGenUsage,
+
+    /// The effective safety identifier used for safety monitoring and abuse detection. This is the
+    /// non-empty `safety_identifier` from the request, or the deprecated `user` value when
+    /// `safety_identifier` is omitted, null, or empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_identifier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,13 +60,13 @@ pub enum ImageGenStreamEvent {
 }
 
 /// Emitted when a partial image is available during image editing streaming.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ImageEditPartialImageEvent {
     /// Base64-encoded partial image data, suitable for rendering as an image.
     pub b64_json: String,
     /// The Unix timestamp when the event was created.
     pub created_at: u64,
-    /// The size of the requested edited image.
+    /// The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
     pub size: ImageSize,
     /// The quality setting for the requested edited image.
     pub quality: ImageQuality,
@@ -73,13 +79,13 @@ pub struct ImageEditPartialImageEvent {
 }
 
 /// Emitted when image editing has completed and the final image is available.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ImageEditCompletedEvent {
     /// Base64-encoded final image data, suitable for rendering as an image.
     pub b64_json: String,
     /// The Unix timestamp when the event was created.
     pub created_at: u64,
-    /// The size of the edited image.
+    /// The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
     pub size: ImageSize,
     /// The quality setting for the edited image.
     pub quality: ImageQuality,
@@ -89,6 +95,12 @@ pub struct ImageEditCompletedEvent {
     pub output_format: ImageOutputFormat,
     /// Token usage information for the image edit.
     pub usage: ImageGenUsage,
+
+    /// The effective safety identifier used for safety monitoring and abuse detection. This is the
+    /// non-empty `safety_identifier` from the request, or the deprecated `user` value when
+    /// `safety_identifier` is omitted, null, or empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_identifier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

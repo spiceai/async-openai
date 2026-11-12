@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The user that owns a project API key.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ProjectApiKeyOwnerUser {
     /// The identifier, which can be referenced in API endpoints.
     pub id: String,
@@ -16,7 +16,7 @@ pub struct ProjectApiKeyOwnerUser {
 }
 
 /// The service account that owns a project API key.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ProjectApiKeyOwnerServiceAccount {
     /// The identifier, which can be referenced in API endpoints.
     pub id: String,
@@ -39,12 +39,25 @@ pub struct ProjectApiKey {
     pub name: String,
     /// The Unix timestamp (in seconds) of when the API key was created.
     pub created_at: u64,
+    /// The Unix timestamp (in seconds) when the API key expires, or null if it does not expire.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
     /// The Unix timestamp (in seconds) of when the API key was last used.
     pub last_used_at: Option<u64>,
     /// The identifier, which can be referenced in API endpoints.
     pub id: String,
     /// The owner of the API key.
     pub owner: ProjectApiKeyOwner,
+    /// Whether the API key's owner currently has effective access to the project.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_project_access: Option<OwnerProjectAccess>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OwnerProjectAccess {
+    Active,
+    Inactive,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -68,7 +81,7 @@ pub struct ProjectApiKeyOwner {
 }
 
 /// Represents the response object for listing project API keys.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ProjectApiKeyListResponse {
     /// The object type, which is always `list`.
     pub object: String,
@@ -83,7 +96,7 @@ pub struct ProjectApiKeyListResponse {
 }
 
 /// Represents the response object for deleting a project API key.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ProjectApiKeyDeleteResponse {
     /// The object type, which is always `organization.project.api_key.deleted`.
     pub object: String,

@@ -13,13 +13,13 @@ pub enum CreateSpeechResponseStreamEvent {
     SpeechAudioDone(SpeechAudioDoneEvent),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct SpeechAudioDeltaEvent {
     /// A chunk of Base64-encoded audio data.
     pub audio: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct SpeechUsage {
     /// Number of input tokens in the prompt.
     pub input_tokens: u32,
@@ -29,13 +29,13 @@ pub struct SpeechUsage {
     pub total_tokens: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct SpeechAudioDoneEvent {
     /// Token usage statistics for the request.
     pub usage: SpeechUsage,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct TranscriptionTextSegmentEvent {
     /// Unique identifier for the segment.
     pub id: String,
@@ -49,7 +49,7 @@ pub struct TranscriptionTextSegmentEvent {
     pub speaker: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TranscriptionTextDeltaEvent {
     /// The text delta that was additionally transcribed.
     pub delta: String,
@@ -62,7 +62,7 @@ pub struct TranscriptionTextDeltaEvent {
     pub segment_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TranscriptionTextDoneEvent {
     /// The text that was transcribed.
     pub text: String,
@@ -72,6 +72,10 @@ pub struct TranscriptionTextDoneEvent {
     pub logprobs: Option<Vec<LogProbProperties>>,
     /// Usage statistics for models billed by token usage.
     pub usage: TranscriptTextUsageTokens,
+    /// The languages detected in the audio. Returned by `gpt-transcribe`.
+    /// An empty array indicates that no language could be reliably detected.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub languages: Option<Vec<crate::types::audio::TranscriptionLanguage>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -1,13 +1,14 @@
 use crate::types::mcp::MCPTool;
 use crate::types::responses::{
-    ApplyPatchCallOutputStatus, ApplyPatchCallOutputStatusParam, ApplyPatchCallStatus,
-    ApplyPatchCallStatusParam, ApplyPatchCreateFileOperation, ApplyPatchCreateFileOperationParam,
+    AdditionalToolsItemParam, AdditionalToolsItemParamRole, ApplyPatchCallOutputStatus,
+    ApplyPatchCallOutputStatusParam, ApplyPatchCallStatus, ApplyPatchCallStatusParam,
+    ApplyPatchCreateFileOperation, ApplyPatchCreateFileOperationParam,
     ApplyPatchDeleteFileOperation, ApplyPatchDeleteFileOperationParam, ApplyPatchOperation,
     ApplyPatchOperationParam, ApplyPatchToolCall, ApplyPatchToolCallItemParam,
     ApplyPatchToolCallOutput, ApplyPatchToolCallOutputItemParam, ApplyPatchUpdateFileOperation,
     ApplyPatchUpdateFileOperationParam, CodeInterpreterContainerAuto, CodeInterpreterTool,
     CodeInterpreterToolCall, CodeInterpreterToolContainer, CompactionBody,
-    CompactionSummaryItemParam, ComputerCallOutputItemParam, ComputerTool, ComputerToolCall,
+    CompactionSummaryItemParam, ComputerCallOutputItemParam, ComputerToolCall,
     ComputerToolCallOutputResource, ComputerUsePreviewTool, ContainerReferenceParam,
     ContainerReferenceResource, ConversationParam, CustomToolCall, CustomToolCallOutput,
     CustomToolCallOutputResource, CustomToolParam, EasyInputContent, EasyInputMessage,
@@ -18,18 +19,21 @@ use crate::types::responses::{
     FunctionShellCallOutput, FunctionShellCallOutputContent, FunctionShellCallOutputContentParam,
     FunctionShellCallOutputExitOutcome, FunctionShellCallOutputExitOutcomeParam,
     FunctionShellCallOutputItemParam, FunctionShellCallOutputOutcome,
-    FunctionShellCallOutputOutcomeParam, FunctionShellCallStatus, FunctionTool, FunctionToolCall,
-    FunctionToolCallOutputResource, ImageGenTool, ImageGenToolCall, InputContent, InputFileContent,
-    InputImageContent, InputItem, InputMessage, InputParam, InputTextContent, Item, ItemReference,
-    ItemReferenceType, LocalEnvironmentParam, LocalShellToolCall, LocalShellToolCallOutput,
-    MCPApprovalRequest, MCPApprovalResponse, MCPListTools, MCPToolCall, MessageItem, MessageType,
-    NamespaceToolParam, OutputItem, OutputMessage, OutputMessageContent, OutputStatus,
-    OutputTextContent, Prompt, Reasoning, ReasoningEffort, ReasoningItem, ReasoningSummary,
+    FunctionShellCallOutputOutcomeParam, FunctionShellCallOutputStatusEnum,
+    FunctionShellCallStatus, FunctionTool, FunctionToolCall, FunctionToolCallOutputResource,
+    ImageGenTool, ImageGenToolCall, InputContent, InputFileContent, InputImageContent, InputItem,
+    InputMessage, InputParam, InputTextContent, Item, ItemReference, ItemReferenceType,
+    LocalEnvironmentParam, LocalShellToolCall, LocalShellToolCallOutput, MCPApprovalRequest,
+    MCPApprovalResponse, MCPListTools, MCPToolCall, MessageItem, MessageType, NamespaceToolParam,
+    OutputItem, OutputMessage, OutputMessageContent, OutputStatus, OutputTextContent, Program,
+    ProgramItemParam, ProgramOutput, ProgramOutputItemParam, ProgramOutputItemStatus,
+    ProgramOutputStatus, Prompt, Reasoning, ReasoningEffort, ReasoningItem, ReasoningSummary,
     RefusalContent, ResponseFormatJsonSchema, ResponsePromptVariables, ResponseStreamOptions,
     ResponseTextParam, Role, TextResponseFormatConfiguration, Tool, ToolChoiceCustom,
     ToolChoiceFunction, ToolChoiceMCP, ToolChoiceOptions, ToolChoiceParam, ToolChoiceTypes,
     ToolSearchCall, ToolSearchCallItemParam, ToolSearchOutput, ToolSearchOutputItemParam,
-    ToolSearchToolParam, WebSearchTool, WebSearchToolCall,
+    ToolSearchOutputNamespaceToolParam, ToolSearchOutputTool, ToolSearchToolParam, WebSearchTool,
+    WebSearchToolCall,
 };
 
 impl<S: Into<String>> From<S> for EasyInputMessage {
@@ -209,13 +213,13 @@ impl<S: Into<String>> From<S> for ConversationParam {
 
 impl From<ToolChoiceOptions> for ToolChoiceParam {
     fn from(mode: ToolChoiceOptions) -> Self {
-        ToolChoiceParam::Mode(mode)
+        ToolChoiceParam::Option(mode)
     }
 }
 
 impl From<ToolChoiceTypes> for ToolChoiceParam {
     fn from(tool_type: ToolChoiceTypes) -> Self {
-        ToolChoiceParam::Hosted(tool_type)
+        ToolChoiceParam::BuiltIn(tool_type)
     }
 }
 
@@ -278,6 +282,8 @@ impl From<bool> for ResponseStreamOptions {
 impl From<ReasoningEffort> for Reasoning {
     fn from(effort: ReasoningEffort) -> Self {
         Reasoning {
+            context: None,
+            mode: None,
             effort: Some(effort),
             summary: None,
         }
@@ -287,6 +293,8 @@ impl From<ReasoningEffort> for Reasoning {
 impl From<ReasoningSummary> for Reasoning {
     fn from(summary: ReasoningSummary) -> Self {
         Reasoning {
+            context: None,
+            mode: None,
             effort: None,
             summary: Some(summary),
         }
@@ -309,7 +317,10 @@ impl<S: Into<String>> From<S> for Prompt {
 
 impl<S: Into<String>> From<S> for InputTextContent {
     fn from(text: S) -> Self {
-        InputTextContent { text: text.into() }
+        InputTextContent {
+            prompt_cache_breakpoint: None,
+            text: text.into(),
+        }
     }
 }
 
@@ -335,7 +346,10 @@ impl From<InputFileContent> for InputContent {
 
 impl<S: Into<String>> From<S> for InputContent {
     fn from(text: S) -> Self {
-        InputContent::InputText(InputTextContent { text: text.into() })
+        InputContent::InputText(InputTextContent {
+            prompt_cache_breakpoint: None,
+            text: text.into(),
+        })
     }
 }
 
@@ -607,12 +621,6 @@ impl From<CustomToolParam> for Tool {
     }
 }
 
-impl From<ComputerTool> for Tool {
-    fn from(tool: ComputerTool) -> Self {
-        Tool::Computer(tool)
-    }
-}
-
 impl From<NamespaceToolParam> for Tool {
     fn from(tool: NamespaceToolParam) -> Self {
         Tool::Namespace(tool)
@@ -738,8 +746,7 @@ impl ItemReference {
 // side) and OutputItem (output side), so an explicit conversion is needed.
 //
 // The conversions below give that "just append the output" ergonomic via
-// `From<OutputItem> for Item` (and through it, `From<OutputItem> for
-// InputItem`). For variants where input and output already share a struct
+// `From<OutputItem> for InputItem`. For variants where input and output already share a struct
 // the conversion is a one-liner; for the handful of variants where the
 // schemas differ (resource types carry required `id`/`status`, while their
 // input-side `*ItemParam` counterparts have those optional), per-pair
@@ -911,6 +918,9 @@ impl From<ApplyPatchOperation> for ApplyPatchOperationParam {
 impl From<FunctionToolCallOutputResource> for FunctionCallOutputItemParam {
     fn from(r: FunctionToolCallOutputResource) -> Self {
         FunctionCallOutputItemParam {
+            caller: r.caller,
+            name: r.name,
+            namespace: r.namespace,
             call_id: r.call_id,
             output: r.output,
             id: Some(r.id),
@@ -949,6 +959,7 @@ impl From<ComputerToolCallOutputResource> for ComputerCallOutputItemParam {
 impl From<CustomToolCallOutputResource> for CustomToolCallOutput {
     fn from(r: CustomToolCallOutputResource) -> Self {
         CustomToolCallOutput {
+            caller: r.caller,
             call_id: r.call_id,
             output: r.output,
             id: Some(r.id),
@@ -959,6 +970,7 @@ impl From<CustomToolCallOutputResource> for CustomToolCallOutput {
 impl From<FunctionShellCall> for FunctionShellCallItemParam {
     fn from(c: FunctionShellCall) -> Self {
         FunctionShellCallItemParam {
+            caller: c.caller,
             id: Some(c.id),
             call_id: c.call_id,
             action: c.action.into(),
@@ -971,10 +983,22 @@ impl From<FunctionShellCall> for FunctionShellCallItemParam {
 impl From<FunctionShellCallOutput> for FunctionShellCallOutputItemParam {
     fn from(o: FunctionShellCallOutput) -> Self {
         FunctionShellCallOutputItemParam {
+            caller: o.caller,
             id: Some(o.id),
             call_id: o.call_id,
             output: o.output.into_iter().map(Into::into).collect(),
             max_output_length: o.max_output_length,
+            status: Some(o.status.into()),
+        }
+    }
+}
+
+impl From<FunctionShellCallOutputStatusEnum> for FunctionShellCallItemStatus {
+    fn from(value: FunctionShellCallOutputStatusEnum) -> Self {
+        match value {
+            FunctionShellCallOutputStatusEnum::InProgress => Self::InProgress,
+            FunctionShellCallOutputStatusEnum::Completed => Self::Completed,
+            FunctionShellCallOutputStatusEnum::Incomplete => Self::Incomplete,
         }
     }
 }
@@ -982,6 +1006,7 @@ impl From<FunctionShellCallOutput> for FunctionShellCallOutputItemParam {
 impl From<ApplyPatchToolCall> for ApplyPatchToolCallItemParam {
     fn from(c: ApplyPatchToolCall) -> Self {
         ApplyPatchToolCallItemParam {
+            caller: c.caller,
             id: Some(c.id),
             call_id: c.call_id,
             status: c.status.into(),
@@ -993,6 +1018,7 @@ impl From<ApplyPatchToolCall> for ApplyPatchToolCallItemParam {
 impl From<ApplyPatchToolCallOutput> for ApplyPatchToolCallOutputItemParam {
     fn from(o: ApplyPatchToolCallOutput) -> Self {
         ApplyPatchToolCallOutputItemParam {
+            caller: o.caller,
             id: Some(o.id),
             call_id: o.call_id,
             status: o.status.into(),
@@ -1028,49 +1054,104 @@ impl From<ToolSearchOutput> for ToolSearchOutputItemParam {
             id: Some(o.id),
             call_id: o.call_id,
             execution: Some(o.execution),
-            tools: o.tools,
+            tools: o.tools.into_iter().map(Into::into).collect(),
             status: Some(o.status.into()),
         }
     }
 }
 
-// Top-level: any output item rolls into an Item, and through the existing
-// `From<Item> for InputItem` impl, into an InputItem too. This is the entry
-// point callers actually want — see the `responses-multi-turn-reasoning`
-// example for the round-trip pattern.
-
-impl From<OutputItem> for Item {
-    fn from(item: OutputItem) -> Self {
-        match item {
-            OutputItem::Message(m) => Item::Message(m.into()),
-            OutputItem::FileSearchCall(c) => c.into(),
-            OutputItem::FunctionCall(c) => c.into(),
-            OutputItem::FunctionCallOutput(o) => Item::FunctionCallOutput(o.into()),
-            OutputItem::WebSearchCall(c) => c.into(),
-            OutputItem::ComputerCall(c) => c.into(),
-            OutputItem::ComputerCallOutput(o) => Item::ComputerCallOutput(o.into()),
-            OutputItem::Reasoning(r) => r.into(),
-            OutputItem::Compaction(c) => Item::Compaction(c.into()),
-            OutputItem::ImageGenerationCall(c) => c.into(),
-            OutputItem::CodeInterpreterCall(c) => c.into(),
-            OutputItem::LocalShellCall(c) => c.into(),
-            OutputItem::ShellCall(c) => Item::ShellCall(c.into()),
-            OutputItem::ShellCallOutput(o) => Item::ShellCallOutput(o.into()),
-            OutputItem::ApplyPatchCall(c) => Item::ApplyPatchCall(c.into()),
-            OutputItem::ApplyPatchCallOutput(o) => Item::ApplyPatchCallOutput(o.into()),
-            OutputItem::McpCall(c) => c.into(),
-            OutputItem::McpListTools(c) => c.into(),
-            OutputItem::McpApprovalRequest(c) => c.into(),
-            OutputItem::CustomToolCall(c) => c.into(),
-            OutputItem::CustomToolCallOutput(o) => Item::CustomToolCallOutput(o.into()),
-            OutputItem::ToolSearchCall(c) => Item::ToolSearchCall(c.into()),
-            OutputItem::ToolSearchOutput(o) => Item::ToolSearchOutput(o.into()),
+impl From<Program> for ProgramItemParam {
+    fn from(item: crate::types::responses::Program) -> Self {
+        Self {
+            id: item.id,
+            call_id: item.call_id,
+            code: item.code,
+            fingerprint: item.fingerprint,
         }
     }
 }
 
+impl From<ProgramOutput> for ProgramOutputItemParam {
+    fn from(item: ProgramOutput) -> Self {
+        Self {
+            id: item.id,
+            call_id: item.call_id,
+            result: item.result,
+            status: match item.status {
+                ProgramOutputStatus::Completed => ProgramOutputItemStatus::Completed,
+                ProgramOutputStatus::Incomplete => ProgramOutputItemStatus::Incomplete,
+            },
+        }
+    }
+}
+
+// Top-level: any output item rolls into an InputItem. This is the entry
+// point callers actually want — see the `responses-multi-turn-reasoning`
+// example for the round-trip pattern.
+
 impl From<OutputItem> for InputItem {
     fn from(item: OutputItem) -> Self {
-        Item::from(item).into()
+        match item {
+            OutputItem::Program(v) => Self::Program(v.into()),
+            OutputItem::ProgramOutput(v) => Self::ProgramOutput(v.into()),
+            OutputItem::AdditionalTools(v) => Item::AdditionalTools(AdditionalToolsItemParam {
+                id: Some(v.id),
+                role: AdditionalToolsItemParamRole::Developer,
+                tools: v.tools,
+            })
+            .into(),
+            OutputItem::Message(m) => Item::Message(m.into()).into(),
+            OutputItem::FileSearchCall(c) => Item::FileSearchCall(c).into(),
+            OutputItem::FunctionCall(c) => Item::FunctionCall(c).into(),
+            OutputItem::FunctionCallOutput(o) => Item::FunctionCallOutput(o.into()).into(),
+            OutputItem::WebSearchCall(c) => Item::WebSearchCall(c).into(),
+            OutputItem::ComputerCall(c) => Item::ComputerCall(c).into(),
+            OutputItem::ComputerCallOutput(o) => Item::ComputerCallOutput(o.into()).into(),
+            OutputItem::Reasoning(r) => Item::Reasoning(r).into(),
+            OutputItem::Compaction(c) => Item::Compaction(c.into()).into(),
+            OutputItem::ImageGenerationCall(c) => Item::ImageGenerationCall(c).into(),
+            OutputItem::CodeInterpreterCall(c) => Item::CodeInterpreterCall(c).into(),
+            OutputItem::LocalShellCall(c) => Item::LocalShellCall(c).into(),
+            OutputItem::ShellCall(c) => Item::ShellCall(c.into()).into(),
+            OutputItem::ShellCallOutput(o) => Item::ShellCallOutput(o.into()).into(),
+            OutputItem::ApplyPatchCall(c) => Item::ApplyPatchCall(c.into()).into(),
+            OutputItem::ApplyPatchCallOutput(o) => Item::ApplyPatchCallOutput(o.into()).into(),
+            OutputItem::McpCall(c) => Item::McpCall(c).into(),
+            OutputItem::McpListTools(c) => Item::McpListTools(c).into(),
+            OutputItem::McpApprovalRequest(c) => Item::McpApprovalRequest(c).into(),
+            OutputItem::CustomToolCall(c) => Item::CustomToolCall(c).into(),
+            OutputItem::CustomToolCallOutput(o) => Item::CustomToolCallOutput(o.into()).into(),
+            OutputItem::ToolSearchCall(c) => Item::ToolSearchCall(c.into()).into(),
+            OutputItem::ToolSearchOutput(o) => Item::ToolSearchOutput(o.into()).into(),
+        }
+    }
+}
+
+impl From<Tool> for ToolSearchOutputTool {
+    fn from(tool: Tool) -> Self {
+        match tool {
+            Tool::ProgrammaticToolCalling => Self::ProgrammaticToolCalling,
+            Tool::LocalShell => Self::LocalShell,
+            Tool::Function(value) => Self::Function(value),
+            Tool::FileSearch(value) => Self::FileSearch(value),
+            Tool::ComputerUsePreview(value) => Self::ComputerUsePreview(value),
+            Tool::WebSearch(value) => Self::WebSearch(value),
+            Tool::WebSearch20250826(value) => Self::WebSearch20250826(value),
+            Tool::Mcp(value) => Self::Mcp(value),
+            Tool::CodeInterpreter(value) => Self::CodeInterpreter(value),
+            Tool::ImageGeneration(value) => Self::ImageGeneration(value),
+            Tool::Shell(value) => Self::Shell(value),
+            Tool::Custom(value) => Self::Custom(value),
+            Tool::Computer => Self::Computer,
+            Tool::Namespace(value) => Self::Namespace(ToolSearchOutputNamespaceToolParam {
+                name: value.name,
+                description: value.description,
+                tools: value.tools,
+            }),
+            Tool::ToolSearch(value) => Self::ToolSearch(value),
+            Tool::WebSearchPreview(value) => Self::WebSearchPreview(value),
+            Tool::WebSearchPreview20250311(value) => Self::WebSearchPreview20250311(value),
+            Tool::ApplyPatch(value) => Self::ApplyPatch(value),
+        }
     }
 }

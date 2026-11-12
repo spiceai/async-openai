@@ -1,6 +1,8 @@
 mod api;
 mod chat_;
 mod impls;
+#[cfg(feature = "openapi")]
+mod schema;
 
 pub use api::*;
 pub use chat_::*;
@@ -20,3 +22,10 @@ pub use crate::types::shared::PromptTokensDetails;
 pub use crate::types::shared::ReasoningEffort;
 pub use crate::types::shared::ResponseFormat;
 pub use crate::types::shared::ResponseFormatJsonSchema;
+pub use crate::types::shared::{
+    ModerationConfigParam, ModerationInputType, ModerationMode, ModerationParam,
+    ModerationPolicyParam, ModerationResultBody, PromptCacheModeEnum, PromptCacheOptionsParam,
+    PromptCacheTTLEnum,
+};
+
+pub use crate::types::shared::PromptCacheBreakpointTTLEnum;

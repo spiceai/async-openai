@@ -3,7 +3,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
 /// Represents an individual Admin API key in an org.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct AdminApiKey {
     /// The object type, which is always `organization.admin_api_key`.
     pub object: String,
@@ -19,10 +19,12 @@ pub struct AdminApiKey {
     pub last_used_at: Option<u64>,
     /// The owner of the API key.
     pub owner: AdminApiKeyOwner,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
 }
 
 /// The newly created admin API key. The `value` field is only returned once, when the key is created.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct AdminApiKeyCreateResponse {
     /// The object type, which is always `organization.admin_api_key`.
     pub object: String,
@@ -40,10 +42,12 @@ pub struct AdminApiKeyCreateResponse {
     pub last_used_at: Option<u64>,
     /// The owner of the API key.
     pub owner: AdminApiKeyOwner,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
 }
 
 /// Represents the owner of an admin API key.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct AdminApiKeyOwner {
     pub r#type: String,
 
@@ -59,7 +63,7 @@ pub struct AdminApiKeyOwner {
 }
 
 /// Represents the response object for listing admin API keys.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct ApiKeyList {
     /// The object type, which is always `list`.
     pub object: String,
@@ -74,7 +78,7 @@ pub struct ApiKeyList {
 }
 
 /// Represents the request object for creating an admin API key.
-#[derive(Debug, Serialize, Deserialize, Builder, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Builder, Clone, PartialEq, Default)]
 #[builder(name = "CreateAdminApiKeyRequestArgs")]
 #[builder(pattern = "mutable")]
 #[builder(setter(into, strip_option))]
@@ -83,10 +87,13 @@ pub struct ApiKeyList {
 pub struct CreateAdminApiKeyRequest {
     /// The name of the API key being created.
     pub name: String,
+    /// Lifetime in seconds, between 1 and 31536000.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_in_seconds: Option<u32>,
 }
 
 /// Represents the response object for deleting an admin API key.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct AdminApiKeyDeleteResponse {
     /// The object type, which is always `organization.admin_api_key.deleted`.
     pub object: String,
