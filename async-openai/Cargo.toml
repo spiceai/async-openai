@@ -253,5 +253,6 @@ name = "whisper"
 required-features = ["audio"]
 
 [package.metadata.docs.rs]
-all-features = true
+# Not all-features: this fork rejects `openapi` with a compile error (see `lib.rs`).
+features = ["full"]
 rustdoc-args = ["--cfg", "docsrs"]
