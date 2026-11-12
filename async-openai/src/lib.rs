@@ -206,57 +206,28 @@
 //!
 //! ## OpenAPI
 //!
-//! Enable `openapi` together with `chat-completion-types` and/or `completion-types`
-//! to use utoipa 5's `ToSchema` with those request, response, streaming chat, and
-//! nested types. Other API families are not yet covered.
-//!
-//! For example, compose an upstream request with your own fields:
+//! This fork derives [utoipa 6](https://docs.rs/utoipa/6/utoipa/) `ToSchema` on the Chat
+//! Completions, Completions, Responses and Embeddings types whenever their type features are
+//! enabled, so an application can list them in its own OpenAPI document with no other
+//! feature. Do not enable the `openapi` feature: upstream uses it to derive a second, utoipa 5
+//! implementation on the same types, which this fork rejects with a compile error.
 //!
 //! ```
-//! # #[cfg(all(feature = "openapi", feature = "chat-completion-types"))]
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # #[cfg(feature = "chat-completion-types")]
+//! # fn main() {
 //! use async_openai::types::chat::CreateChatCompletionRequest;
-//! use serde::{Deserialize, Serialize};
-//! use utoipa::{OpenApi, ToSchema};
-//!
-//! #[derive(Serialize, Deserialize, ToSchema)]
-//! struct ExtendedChatRequest {
-//!     #[serde(flatten)]
-//!     request: CreateChatCompletionRequest,
-//!     application_tag: Option<String>,
-//! }
+//! use utoipa::OpenApi;
 //!
 //! #[derive(OpenApi)]
-//! #[openapi(components(schemas(ExtendedChatRequest)))]
+//! #[openapi(components(schemas(CreateChatCompletionRequest)))]
 //! struct ApiDoc;
 //!
-//! let json = ApiDoc::openapi().to_pretty_json()?;
-//! # assert!(json.contains("async_openai.CreateChatCompletionRequest"));
-//! # Ok(())
+//! let json = ApiDoc::openapi().to_pretty_json().unwrap();
+//! assert!(json.contains("CreateChatCompletionRequest"));
 //! # }
-//! # #[cfg(not(all(feature = "openapi", feature = "chat-completion-types")))]
+//! # #[cfg(not(feature = "chat-completion-types"))]
 //! # fn main() {}
 //! ```
-//!
-//! OpenAPI component names use a flat `async_openai.` prefix, for example
-//! `async_openai.ImageDetail`, to distinguish them from downstream types. These
-//! names are document identifiers, not Rust module paths; imports remain under
-//! `async_openai::types::chat` or `async_openai::types::completions`. Shared types
-//! keep one component name regardless of which public module re-exports them.
-//!
-//! Request schemas include documented OpenAI numeric ranges for sampling parameters,
-//! counts, and logit biases. These are schema constraints only: they do not add
-//! validation to Serde, builders, or HTTP requests. The schemas do not express every
-//! server rule, including model-dependent limits and relationships between fields.
-//!
-//! Downstream servers can use [`utoipa::Modify`](https://docs.rs/utoipa/5/utoipa/trait.Modify.html)
-//! or edit the generated document to replace or remove constraints. For example,
-//! changing the `n` property's `maximum` from 128 to 255 widens its documented range;
-//! clearing `minimum` and `maximum` removes the explicit bounds. This does not
-//! widen the Rust field's `u8` range. Edits to a shared component affect all its
-//! references; clone and rename it for endpoint-specific changes. Adding an
-//! `allOf` constraint can narrow an inherited range, but cannot widen it.
-//! Schema generation does not enable the HTTP client.
 //!
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

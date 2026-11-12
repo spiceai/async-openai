@@ -246,10 +246,11 @@ Middleware is supported via Tower ecosystem, which can be enabled with `middlewa
 
 ## OpenAPI
 
-The `openapi` feature provides [utoipa](https://docs.rs/utoipa/5/utoipa/) schemas
-for Chat Completions and Completions types. Enable the corresponding type features
-(`chat-completion-types` and/or `completion-types`). Other API families are not yet
-covered. See the [OpenAPI example](https://docs.rs/async-openai/latest/async_openai/#openapi).
+This fork derives [utoipa 6](https://docs.rs/utoipa/6/utoipa/) `ToSchema` on the Chat
+Completions, Completions, Responses and Embeddings types whenever their type features are
+enabled, so an application can list them in its own OpenAPI document with no other feature.
+Do not enable the `openapi` feature: upstream uses it to derive a second, utoipa 5
+implementation on the same types, which this fork rejects with a compile error.
 
 ## Contributing
 
